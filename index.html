@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F1417">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Brumdrum">
+<title>Brumdrumherum</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Signika:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Design-Idee: Nachtasphalt + Markierungsgelb.
+   Gelb ist in der Schweiz die Farbe provisorischer Baustellenmarkierungen.
+   Es steht in der App nur für zwei Dinge: Baustellen und die empfohlene Umfahrung (plus Punkte).
+   Die App ist immer dunkel. Die Seite drumherum folgt Hell/Dunkel des Betrachters. */
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --page:#EDEFEC; --panel:#FFFFFF; --pink:#161C1F; --pmuted:#5F6B70; --pline:#DCE1DE; --console:#0F1417; --console-ink:#C9D3D0;
+  --bg:#0F1417; --s1:#161D21; --s2:#1E272C; --line:#28333A; --ink:#EEF2F0; --muted:#8A979C; --faint:#5C686D;
+  --yellow:#F7C948; --yellow-ink:#1C1603; --yellow-soft:rgba(247,201,72,.12);
+  --free:#5BD1A0; --slow:#F0A94B; --jam:#F0724B; --limit:#E5484D;
+  --astra:#7FA8D9; --bern:#E5484D; --crowd:#B39DDB;
+  --road:#26323A; --water:#17313F; --mapbg:#12191C;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --page:#0A0E10; --panel:#12181B; --pink:#E8EDEA; --pmuted:#8D999D; --pline:#222C31; --console:#080B0D; }
+}
+:root[data-theme="dark"]{ --page:#0A0E10; --panel:#12181B; --pink:#E8EDEA; --pmuted:#8D999D; --pline:#222C31; --console:#080B0D; }
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;min-height:100%;background:var(--page);color:var(--pink);font-family:"Signika","Segoe UI",system-ui,sans-serif;font-size:15.5px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--yellow);outline-offset:3px}
+h1,h2,h3,h4{margin:0;line-height:1.15;font-weight:600}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ---------- Stage ---------- */
+.stage{display:grid;grid-template-columns:400px minmax(0,1fr);gap:32px;max-width:1240px;margin:0 auto;padding:26px 22px 44px;align-items:start}
+.side{display:grid;gap:14px;position:sticky;top:18px}
+
+/* ---------- Phone ---------- */
+.phone{width:390px;height:812px;background:var(--bg);color:var(--ink);border:9px solid #050708;border-radius:48px;position:relative;overflow:hidden;box-shadow:0 30px 70px -20px rgba(10,14,16,.55);display:flex;flex-direction:column;margin:0 auto}
+.statusbar{height:40px;display:flex;justify-content:space-between;align-items:center;padding:4px 28px 0;font-size:13.5px;font-weight:600;flex-shrink:0}
+.statusbar .sig{display:flex;gap:6px;align-items:center;color:var(--ink)}
+.appbar{padding:6px 20px 10px;flex-shrink:0}
+.screen{flex:1;overflow-y:auto;padding:4px 20px 110px;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){.screen{scroll-behavior:auto}}
+.hidden{display:none!important}
+
+.tabbar{position:absolute;left:0;right:0;bottom:0;padding:10px 18px 22px;background:linear-gradient(to top,var(--bg) 62%,rgba(15,20,23,0));display:flex;justify-content:space-around}
+.tabbar button{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--faint);cursor:pointer;padding:6px 10px;letter-spacing:.01em}
+.tabbar button svg.i{width:22px;height:22px}
+.tabbar button[aria-current="true"]{color:var(--ink)}
+.tabbar button[aria-current="true"]::after{content:"";width:16px;height:3px;border-radius:2px;background:var(--yellow);margin-top:1px}
+
+/* Kopf mit Level */
+.me{display:flex;align-items:center;gap:12px}
+.ring{position:relative;width:44px;height:44px;flex-shrink:0}
+.ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.ring span{position:absolute;inset:5px;border-radius:50%;background:var(--s2);display:grid;place-items:center;font-weight:600;font-size:16px}
+.me .who{flex:1;min-width:0}
+.me .who small{display:block;color:var(--muted);font-size:12.5px}
+.me .who b{font-weight:600;font-size:15px}
+.bp{display:flex;align-items:baseline;gap:4px;padding:7px 12px;border-radius:999px;background:var(--yellow-soft);color:var(--yellow);font-weight:600}
+.bp small{font-size:11px;font-weight:500;opacity:.8}
+
+.h1{font-size:30px;font-weight:600;letter-spacing:-.01em;margin:16px 0 4px}
+.lead{color:var(--muted);font-size:14px;margin:0 0 18px}
+.back{display:inline-flex;align-items:center;gap:4px;background:none;border:0;color:var(--muted);padding:0;margin:2px 0 10px;cursor:pointer;font-size:14px}
+.back svg.i{width:18px;height:18px}
+.label{font-size:12.5px;color:var(--muted);margin:24px 0 10px;display:flex;justify-content:space-between}
+
+/* Strecken-Karte */
+.route{display:block;width:100%;text-align:left;cursor:pointer;background:var(--s1);border:1px solid var(--line);border-radius:22px;padding:18px;margin-bottom:12px}
+.route .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.route h3{font-size:19px}
+.route .ft{color:var(--muted);font-size:13.5px;margin-top:3px}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;white-space:nowrap;color:var(--muted)}
+.state::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.state.warn{color:var(--yellow)}.state.ok{color:var(--free)}
+.lane{height:2px;margin:16px 0 14px;background:repeating-linear-gradient(90deg,var(--line) 0 14px,transparent 14px 24px)}
+.lane.warn{background:repeating-linear-gradient(90deg,var(--yellow) 0 14px,transparent 14px 24px);opacity:.8}
+.route .facts{display:flex;gap:18px;font-size:13.5px;color:var(--muted)}
+.route .facts span{display:inline-flex;gap:6px;align-items:center}
+.route .facts svg.i{width:16px;height:16px}
+.route .msg{margin-top:12px;font-size:14px;color:var(--ink)}
+.route .today{margin-top:8px;font-size:13.5px;color:var(--yellow)}
+
+.add{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:1px dashed var(--line);background:transparent;border-radius:18px;padding:14px;color:var(--muted);cursor:pointer}
+
+/* Quests als ruhige Liste */
+.list{background:var(--s1);border:1px solid var(--line);border-radius:22px;overflow:hidden}
+.li{display:flex;align-items:center;gap:14px;padding:14px 16px;border-top:1px solid var(--line)}
+.li:first-child{border-top:0}
+.li .ic{width:36px;height:36px;border-radius:12px;background:var(--s2);display:grid;place-items:center;color:var(--muted);flex-shrink:0}
+.li.done .ic{background:var(--yellow-soft);color:var(--yellow)}
+.li .t{flex:1;min-width:0;font-size:14px}
+.li .t small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.li .pbar{height:3px;background:var(--s2);border-radius:2px;margin-top:8px;overflow:hidden}
+.li .pbar i{display:block;height:100%;background:var(--yellow)}
+.li .rw{font-size:13px;color:var(--muted);white-space:nowrap}
+.li.done .rw{color:var(--yellow)}
+
+/* Buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;border-radius:16px;padding:15px;font-weight:600;cursor:pointer;background:var(--ink);color:var(--bg);font-size:15.5px}
+.btn.y{background:var(--yellow);color:var(--yellow-ink)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:8px}
+
+/* Karte */
+.mapbox{border-radius:22px;overflow:hidden;border:1px solid var(--line);margin-bottom:14px;background:var(--mapbg)}
+.mapbox svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);padding:2px 14px 12px}
+.legend i{display:inline-block;width:12px;height:4px;border-radius:2px;margin-right:5px;vertical-align:middle}
+
+/* Baustellen */
+.site{display:flex;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.site:first-of-type{border-top:0}
+.site .ic{width:36px;height:36px;border-radius:12px;background:var(--yellow-soft);color:var(--yellow);display:grid;place-items:center;flex-shrink:0}
+.site.crowd .ic{background:rgba(179,157,219,.12);color:var(--crowd)}
+.site h4{font-size:15px;font-weight:500}
+.site p{margin:3px 0 0;font-size:13px;color:var(--muted)}
+.src{font-size:11.5px;font-weight:600;letter-spacing:.02em}
+.src.astra{color:var(--astra)}.src.bern{color:var(--bern)}.src.crowd{color:var(--crowd)}
+.sites{background:var(--s1);border:1px solid var(--line);border-radius:22px;padding:4px 16px;margin-bottom:6px}
+.okbox{background:var(--s1);border:1px solid var(--line);border-radius:22px;padding:16px;color:var(--free)}
+
+/* Routenvergleich */
+.seg{display:flex;background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:transparent;border-radius:10px;padding:8px;font-size:13.5px;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--s2);color:var(--ink)}
+.demo{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--muted);margin:0 2px 12px}
+.demo b{color:var(--slow);font-weight:600}
+.cand{background:var(--s1);border:1px solid var(--line);border-radius:22px;padding:16px;margin-bottom:10px}
+.cand.rec{border-color:var(--yellow)}
+.cand .hd{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cand .hd h4{font-size:13px;font-weight:500;color:var(--muted)}
+.chip{font-size:11.5px;font-weight:600;border-radius:999px;padding:4px 9px;white-space:nowrap}
+.chip.rec{background:var(--yellow);color:var(--yellow-ink)}
+.chip.on{background:var(--s2);color:var(--ink)}
+.cand .via{font-size:17px;font-weight:500;margin:6px 0 2px}
+.cand .big{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:8px 0 12px}
+.cand .big b{font-size:34px;font-weight:600;line-height:1;letter-spacing:-.02em}
+.cand .big b small{font-size:15px;font-weight:500;margin-left:2px}
+.cand .big span{font-size:13px;color:var(--muted)}
+.meter{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center}
+.meter .track{height:6px;background:var(--s2);border-radius:3px;overflow:hidden;grid-column:1/-1}
+.meter .track i{display:block;height:100%;border-radius:3px}
+.meter .l{font-size:13.5px}
+.meter .r{font-size:13.5px;font-weight:500}
+.cand .foot{font-size:12.5px;color:var(--muted);margin-top:10px}
+.cand .foot .tag{color:var(--slow)}
+.cand details{margin-top:10px;font-size:12.5px;color:var(--muted)}
+.cand summary{cursor:pointer;color:var(--ink);list-style:none}
+.cand summary::-webkit-details-marker{display:none}
+.cand summary::after{content:" +";color:var(--muted)}
+.cand details[open] summary::after{content:" –"}
+.cand .row{margin-top:14px}
+.cand .row .btn{padding:12px;font-size:14.5px}
+
+/* Formular */
+label.f{display:block;font-size:12.5px;color:var(--muted);margin:16px 2px 7px}
+select,input[type=time],input[type=text]{width:100%;padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:var(--s1);color:var(--ink);appearance:none}
+.days{display:flex;gap:6px}
+.days button{flex:1;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--s1);cursor:pointer;font-size:13px;color:var(--muted)}
+.days button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.note{font-size:12.5px;color:var(--muted);margin:10px 2px}
+.err{font-size:13px;color:var(--limit);margin:10px 2px;min-height:1em}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opts button{border:1px solid var(--line);background:var(--s1);border-radius:14px;padding:12px;font-size:13.5px;text-align:left;cursor:pointer;color:var(--muted)}
+.opts button[aria-pressed="true"]{border-color:var(--yellow);color:var(--ink);background:var(--yellow-soft)}
+.where{display:flex;align-items:center;gap:10px;background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:13px 14px;font-size:14px}
+.where svg.i{color:var(--yellow)}
+.hintbox{display:flex;gap:10px;font-size:13px;color:var(--muted);background:var(--s1);border-radius:14px;padding:12px 14px;margin-bottom:6px}
+
+/* Onboarding: die eine Animation */
+.onb{display:flex;flex-direction:column;min-height:100%;padding-top:10px}
+.word{font-size:46px;font-weight:600;line-height:.95;letter-spacing:-.02em;margin:18px 0 0}
+.word span{display:block}
+.word span:nth-child(2){color:var(--muted);font-weight:300}
+.detour{display:block;width:100%;height:auto;margin:22px 0 18px}
+.detour .blk{fill:var(--s2)}
+.detour .main{stroke:var(--line);stroke-width:3;fill:none;stroke-dasharray:10 8}
+.detour .alt{stroke:var(--yellow);stroke-width:3.5;fill:none;stroke-linecap:round;stroke-dasharray:10 8;animation:draw 2.4s ease forwards .3s;stroke-dashoffset:400}
+@keyframes draw{to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){.detour .alt{animation:none;stroke-dashoffset:0}}
+.onb .lead{font-size:16px;color:var(--muted);max-width:30ch;margin:0 0 24px}
+.feat{display:flex;gap:14px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.feat .ic{color:var(--yellow);margin-top:1px}
+.feat b{display:block;font-weight:500}
+.feat span{font-size:13.5px;color:var(--muted)}
+
+/* Sperrbildschirm */
+.lock{position:absolute;inset:0;background:radial-gradient(90% 55% at 50% 0%,#233038 0%,#11181B 60%,#0B0F11 100%);z-index:5;display:flex;flex-direction:column;align-items:center;padding:78px 14px 24px}
+.lock .date{font-size:16px;color:#AEBBBF}
+.lock .time{font-size:84px;font-weight:500;line-height:1;margin:6px 0 34px;letter-spacing:-.03em;color:#F4F7F5}
+.lock .hint{margin-top:auto;font-size:12.5px;color:#6D7A7F}
+.lock .sleep{font-size:14px;color:#8A979C;text-align:center;max-width:24ch}
+.notif{width:100%;background:rgba(40,51,58,.72);backdrop-filter:blur(18px);color:#EEF2F0;border-radius:22px;padding:14px;display:flex;gap:12px;cursor:pointer;text-align:left;border:1px solid rgba(255,255,255,.06);animation:drop .5s ease both}
+@keyframes drop{from{transform:translateY(-20px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.notif{animation:none}}
+.notif .app{width:38px;height:38px;border-radius:10px;background:var(--yellow);color:var(--yellow-ink);display:grid;place-items:center;flex-shrink:0}
+.notif b{display:block;font-size:14.5px;font-weight:600}
+.notif span{font-size:14px;display:block;color:#D5DDDA}
+.notif small{color:#8A979C;font-size:12px}
+
+/* Belohnung + Sheets */
+.reward{position:absolute;left:50%;bottom:96px;transform:translate(-50%,8px);background:var(--s2);border:1px solid var(--line);border-radius:999px;padding:9px 16px 9px 10px;display:flex;align-items:center;gap:10px;z-index:8;opacity:0;pointer-events:none;box-shadow:0 12px 30px rgba(0,0,0,.45);transition:opacity .25s,transform .25s;width:max-content;max-width:88%}
+.reward.show{opacity:1;transform:translate(-50%,0)}
+.reward .pts{background:var(--yellow);color:var(--yellow-ink);font-weight:600;border-radius:999px;padding:3px 9px;font-size:13.5px}
+.reward .why{font-size:13.5px}
+.sheet{position:absolute;inset:0;background:rgba(5,7,8,.65);display:none;align-items:flex-end;z-index:9}
+.sheet.show{display:flex}
+.sheet .inner{background:var(--s1);width:100%;border-radius:28px 28px 0 0;padding:26px 22px 30px;border-top:1px solid var(--line)}
+.levelup{text-align:center}
+.levelup .n{width:84px;height:84px;margin:0 auto 14px;border-radius:50%;border:3px solid var(--yellow);display:grid;place-items:center;font-size:34px;font-weight:600;color:var(--yellow)}
+.levelup h3{font-size:24px;margin-bottom:6px}
+.levelup p{color:var(--muted);margin:0 0 20px}
+
+/* Profil */
+.stats{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:22px;overflow:hidden;margin-bottom:6px}
+.stat{padding:16px;background:var(--s1)}
+.stat:nth-child(odd){border-right:1px solid var(--line)}
+.stat:nth-child(-n+2){border-bottom:1px solid var(--line)}
+.stat b{font-size:30px;font-weight:600;display:block;line-height:1;letter-spacing:-.02em}
+.stat span{font-size:12.5px;color:var(--muted)}
+.impact{border-left:3px solid var(--yellow);padding:4px 0 4px 14px;margin:18px 0 4px;font-size:14px}
+.impact span{color:var(--muted)}
+.badges{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.badge{border:1px solid var(--line);border-radius:18px;padding:14px 8px;text-align:center;background:var(--s1)}
+.badge .ic{width:42px;height:42px;margin:0 auto 8px;border-radius:50%;display:grid;place-items:center;background:var(--yellow-soft);color:var(--yellow)}
+.badge b{display:block;font-size:12.5px;font-weight:500}
+.badge small{font-size:11px;color:var(--muted)}
+.badge.locked .ic{background:var(--s2);color:var(--faint)}
+.badge.locked b{color:var(--muted)}
+.fine{font-size:12px;color:var(--faint);margin-top:18px}
+
+/* ---------- Story-Panel ---------- */
+.story{background:var(--panel);border:1px solid var(--pline);border-radius:22px;padding:22px 24px}
+.progress{display:flex;gap:4px;margin-bottom:18px}
+.progress button{flex:1;height:4px;border-radius:2px;border:0;background:var(--pline);cursor:pointer;padding:0}
+.progress button.done{background:var(--pmuted)}
+.progress button.cur{background:var(--yellow)}
+.stepno{display:flex;align-items:center;gap:12px;color:var(--pmuted);font-size:13.5px}
+.stepno .letter{width:34px;height:34px;border-radius:9px;background:var(--yellow);color:var(--yellow-ink);display:grid;place-items:center;font-weight:600;font-size:17px}
+.story h2{font-size:27px;letter-spacing:-.01em;margin:14px 0 0}
+.story p{margin:12px 0;max-width:66ch}
+.tech{background:var(--page);border-radius:14px;padding:12px 14px;margin:14px 0;font-size:14px;color:var(--pmuted);max-width:66ch}
+.tech b{color:var(--pink);font-weight:600}
+.ctrl{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap}
+.ctrl button{border-radius:12px;padding:11px 18px;font-weight:500;cursor:pointer;border:1px solid var(--pline);background:transparent;color:var(--pink)}
+.ctrl button.primary{background:var(--pink);border-color:var(--pink);color:var(--panel)}
+.ctrl button:disabled{opacity:.4;cursor:default}
+.ctrl .tip{font-size:13px;color:var(--pmuted)}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.summary div{border:1px solid var(--pline);border-radius:14px;padding:12px 14px;font-size:13.5px}
+.summary h3{font-size:14px;margin-bottom:6px}
+.summary ul{margin:0;padding-left:18px;color:var(--pmuted)}
+.more{display:none;background:none;border:0;color:var(--pmuted);font-weight:500;padding:6px 0 0;cursor:pointer;text-decoration:underline}
+
+.box{background:var(--panel);border:1px solid var(--pline);border-radius:22px;padding:16px 18px}
+.box h3{font-size:15px;margin-bottom:10px;display:flex;justify-content:space-between;gap:8px}
+.box h3 span{font-weight:400;font-size:12.5px;color:var(--pmuted)}
+.log{background:var(--console);color:var(--console-ink);border-radius:14px;padding:14px;font-size:12.3px;line-height:1.6;height:220px;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.log .ok{color:#7ED9B4}.log .warn{color:#F7C948}.log .dim{color:#66737A}
+details.src summary{cursor:pointer;font-weight:600;font-size:15px}
+.tblwrap{overflow-x:auto;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--pline);vertical-align:top}
+th{color:var(--pmuted);font-weight:500}
+.no{color:var(--pmuted)}
+
+/* ---------- App-Modus: auf dem Handy (und in der installierten PWA) nur die App ----------
+   Die Story liegt als schmale Leiste über der Navigation und lässt sich aufklappen oder ausblenden. */
+body.appmode{background:var(--bg)}
+body.appmode .stage{display:block;padding:0;max-width:none}
+body.appmode .phone{width:100%;height:100vh;height:100dvh;border:0;border-radius:0;box-shadow:none}
+body.appmode .statusbar{display:none}
+body.appmode .appbar{padding-top:calc(14px + env(safe-area-inset-top,0px))}
+body.appmode .lock{padding-top:calc(70px + env(safe-area-inset-top,0px))}
+body.appmode .tabbar{padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+body.appmode .screen{padding-bottom:calc(180px + env(safe-area-inset-bottom,0px))}
+body.appmode.notour .screen{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}
+body.appmode .reward{bottom:calc(160px + env(safe-area-inset-bottom,0px))}
+body.appmode .side{position:static;display:block;padding:0}
+body.appmode .side > .box{display:none}
+body.appmode .story{position:fixed;left:10px;right:10px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:30;background:rgba(30,39,44,.95);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:10px 12px;max-height:70dvh;overflow:auto;box-shadow:0 12px 34px rgba(0,0,0,.5)}
+body.appmode.notour .story{display:none}
+body.appmode.notabs .story{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+body.appmode .story .progress{margin-bottom:10px}
+body.appmode .story .progress button{background:var(--line);height:3px}
+body.appmode .story .progress button.done{background:var(--muted)}
+body.appmode .story .progress button.cur{background:var(--yellow)}
+body.appmode .story .stepno{display:none}
+body.appmode .story .bar{display:flex;align-items:center;gap:10px}
+body.appmode .story .bar .letter{width:30px;height:30px;border-radius:8px;background:var(--yellow);color:var(--yellow-ink);display:grid;place-items:center;font-weight:600;flex-shrink:0}
+body.appmode .story .bar .tt{flex:1;min-width:0;background:none;border:0;text-align:left;padding:0;cursor:pointer;color:var(--ink)}
+body.appmode .story .bar .tt small{display:block;color:var(--muted);font-size:11.5px}
+body.appmode .story .bar .tt b{display:block;font-weight:500;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.appmode .story .bar .go{border:0;background:var(--yellow);color:var(--yellow-ink);border-radius:12px;padding:9px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
+body.appmode .story .bar .go:disabled{opacity:.5}
+body.appmode .story .bar .x{border:0;background:none;color:var(--muted);font-size:22px;line-height:1;padding:4px 6px;cursor:pointer}
+body.appmode .story h2,body.appmode .story > .more{display:none}
+body.appmode .story:not(.open) .body,body.appmode .story:not(.open) .ctrl{display:none}
+body.appmode .story .body{margin-top:10px}
+body.appmode .story p{font-size:14px;margin:8px 0}
+body.appmode .story .tech{background:var(--s2);color:var(--muted);font-size:13px}
+body.appmode .story .tech b{color:var(--ink)}
+body.appmode .story .ctrl{margin-top:10px}
+body.appmode .story .ctrl button{border-color:var(--line);color:var(--ink);padding:9px 14px}
+body.appmode .story .ctrl button.primary{background:var(--ink);color:var(--bg)}
+body.appmode .story .ctrl .tip{color:var(--muted)}
+body.appmode .story .summary{grid-template-columns:1fr}
+body.appmode .story .summary div{border-color:var(--line)}
+body.appmode .story .summary ul{color:var(--muted)}
+body.appmode .story .log.mini{height:150px;font-size:11px;margin-top:10px}
+.story .bar{display:none}
+.tourbtn{display:none}
+body.appmode .tourbtn{display:flex}
+</style>
+</head>
+<body class="appmode force">
+<div class="stage">
+  <div class="phone" id="phone">
+    <div class="statusbar"><span id="clock" class="tnum">21:04</span><span class="sig"><svg class="i" viewBox="0 0 24 24" style="width:17px;height:17px"><path d="M4 18v-2M9 18v-5M14 18V9M19 18V5"/></svg><svg class="i" viewBox="0 0 24 24" style="width:22px;height:17px"><rect x="3" y="7" width="16" height="10" rx="2.5"/><rect x="5" y="9" width="10" height="6" rx="1" fill="currentColor" stroke="none"/><path d="M21 10.5v3"/></svg></span></div>
+    <div class="appbar" id="appbar"></div>
+    <div class="screen" id="screen"></div>
+    <nav class="tabbar" id="tabbar" aria-label="App-Navigation"></nav>
+    <div class="lock hidden" id="lock"></div>
+    <div class="reward" id="reward" role="status"><span class="pts" id="rwPts"></span><span class="why" id="rwWhy"></span></div>
+    <div class="sheet" id="sheet"><div class="inner" id="sheetInner"></div></div>
+  </div>
+
+  <div class="side">
+    <section class="story" id="story" aria-live="polite"></section>
+    <section class="box">
+      <h3>Hinter den Kulissen <span>Backend-Log, Xano-Simulation</span></h3>
+      <div class="log" id="log"></div>
+    </section>
+    <section class="box">
+      <details class="src"><summary>Datenquellen und ihr Status</summary>
+        <div class="tblwrap"><table><thead><tr><th>Quelle</th><th>Liefert</th><th>Status im Prototyp</th></tr></thead><tbody id="srcTbl"></tbody></table></div>
+      </details>
+    </section>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+const TODAY = new Date("2026-09-24T07:12:00");
+const THRESHOLD_M = 100;
+
+/* ---------- Raw source data (formats as delivered) ---------- */
+const DATEX_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<d2LogicalModel xmlns="http://datex2.eu/schema/2/2_0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" modelBaseVersion="2">
+ <payloadPublication xsi:type="SituationPublication" lang="de">
+  <situation id="CH-ASTRA-2026-44121">
+   <situationRecord xsi:type="MaintenanceWorks" id="CH-ASTRA-2026-44121-1">
+    <validity><validityTimeSpecification>
+     <overallStartTime>2026-09-14T20:00:00+02:00</overallStartTime>
+     <overallEndTime>2026-10-30T05:00:00+01:00</overallEndTime>
+    </validityTimeSpecification></validity>
+    <generalPublicComment><comment><values><value lang="de">A1 Felsenauviadukt Ri. Zürich: Belagsarbeiten, ein Fahrstreifen gesperrt</value></values></comment></generalPublicComment>
+    <groupOfLocations><locationForDisplay><latitude>46.9700</latitude><longitude>7.4420</longitude></locationForDisplay></groupOfLocations>
+   </situationRecord>
+  </situation>
+  <situation id="CH-ASTRA-2026-44187">
+   <situationRecord xsi:type="RoadworksLaneClosure" id="CH-ASTRA-2026-44187-1">
+    <validity><validityTimeSpecification>
+     <overallStartTime>2026-09-21T06:00:00+02:00</overallStartTime>
+     <overallEndTime>2026-10-09T18:00:00+02:00</overallEndTime>
+    </validityTimeSpecification></validity>
+    <generalPublicComment><comment><values><value lang="de">A1 Anschluss Bern-Bethlehem/Weyermannshaus: Einfahrt verengt</value></values></comment></generalPublicComment>
+    <groupOfLocations><locationForDisplay><latitude>46.9492</latitude><longitude>7.4152</longitude></locationForDisplay></groupOfLocations>
+   </situationRecord>
+  </situation>
+  <situation id="CH-ASTRA-2026-44203">
+   <situationRecord xsi:type="MaintenanceWorks" id="CH-ASTRA-2026-44203-1">
+    <validity><validityTimeSpecification>
+     <overallStartTime>2026-09-01T21:00:00+02:00</overallStartTime>
+     <overallEndTime>2026-11-20T05:00:00+01:00</overallEndTime>
+    </validityTimeSpecification></validity>
+    <generalPublicComment><comment><values><value lang="de">A6 Bern-Ostring: Nachtarbeiten Lärmschutzwand</value></values></comment></generalPublicComment>
+    <groupOfLocations><locationForDisplay><latitude>46.9420</latitude><longitude>7.4752</longitude></locationForDisplay></groupOfLocations>
+   </situationRecord>
+  </situation>
+  <situation id="CH-ASTRA-2026-44250">
+   <situationRecord xsi:type="MaintenanceWorks" id="CH-ASTRA-2026-44250-1">
+    <validity><validityTimeSpecification>
+     <overallStartTime>2026-09-10T08:00:00+02:00</overallStartTime>
+     <overallEndTime>2026-12-18T17:00:00+01:00</overallEndTime>
+    </validityTimeSpecification></validity>
+    <generalPublicComment><comment><values><value lang="de">A1 Grauholz: Sanierung Mittelstreifen</value></values></comment></generalPublicComment>
+    <groupOfLocations><locationForDisplay><latitude>47.0000</latitude><longitude>7.4900</longitude></locationForDisplay></groupOfLocations>
+   </situationRecord>
+  </situation>
+ </payloadPublication>
+</d2LogicalModel>`;
+
+function sq(E,N,h){ h=h||18; return [[[E-h,N-h],[E+h,N-h],[E+h,N+h],[E-h,N+h],[E-h,N-h]]]; }
+const KOER_GEOJSON = {
+  type:"FeatureCollection",
+  crs:{type:"name",properties:{name:"EPSG:2056"}},
+  features:[
+    {type:"Feature",properties:{OBJECTID:1187,Locality:"Eigerplatz",Project:"Werkleitungen ewb, Ersatz Gasleitung",StartDate:"2026-08-17",EndDate:"2026-11-27",StatusTxt:"in Ausführung"},geometry:{type:"Polygon",coordinates:sq(2599319.8,1198734.6)}},
+    {type:"Feature",properties:{OBJECTID:1192,Locality:"Monbijoustrasse",Project:"Sanierung Kanalisation, Fahrbahn einspurig",StartDate:"2026-09-28",EndDate:"2026-12-11",StatusTxt:"geplant"},geometry:{type:"Polygon",coordinates:sq(2599890.9,1199401.6)}},
+    {type:"Feature",properties:{OBJECTID:1203,Locality:"Könizstrasse",Project:"Fernwärme, Querung Trottoir",StartDate:"2026-09-07",EndDate:"2026-10-16",StatusTxt:"in Ausführung"},geometry:{type:"Polygon",coordinates:sq(2598367.8,1197901.0)}},
+    {type:"Feature",properties:{OBJECTID:1211,Locality:"Breitenrainplatz",Project:"Neugestaltung Platz",StartDate:"2026-05-04",EndDate:"2027-03-26",StatusTxt:"in Ausführung"},geometry:{type:"Polygon",coordinates:sq(2601017.5,1200769.1)}},
+    {type:"Feature",properties:{OBJECTID:1224,Locality:"Papiermühlestrasse",Project:"Tramgleise, Vorarbeiten",StartDate:"2026-09-14",EndDate:"2026-10-23",StatusTxt:"in Ausführung"},geometry:{type:"Polygon",coordinates:sq(2602387.4,1201103.0)}},
+    {type:"Feature",properties:{OBJECTID:1230,Locality:"Seftigenstrasse",Project:"Belagserneuerung",StartDate:"2027-04-12",EndDate:"2027-07-02",StatusTxt:"geplant"},geometry:{type:"Polygon",coordinates:sq(2600332.5,1198100.9)}}
+  ]
+};
+
+/* ---------- Geo helpers ---------- */
+// swisstopo Näherungsformel LV95 -> WGS84
+function lv95ToWgs84(E,N){
+  const y=(E-2600000)/1e6, x=(N-1200000)/1e6;
+  const lam=2.6779094+4.728982*y+0.791484*y*x+0.1306*y*x*x-0.0436*y*y*y;
+  const phi=16.9023892+3.238272*x-0.270978*y*y-0.002528*x*x-0.0447*y*y*x-0.0140*x*x*x;
+  return [phi*100/36, lam*100/36];
+}
+function haversine(a,b){
+  const R=6371000, r=Math.PI/180, dp=(b[0]-a[0])*r, dl=(b[1]-a[1])*r;
+  const h=Math.sin(dp/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dl/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function densify(line,step){
+  const out=[];
+  for(let i=0;i<line.length-1;i++){
+    const a=line[i], b=line[i+1], n=Math.max(1,Math.floor(haversine(a,b)/step));
+    for(let k=0;k<n;k++) out.push([a[0]+(b[0]-a[0])*k/n, a[1]+(b[1]-a[1])*k/n]);
+  }
+  out.push(line[line.length-1]); return out;
+}
+function bbox(line,pad){
+  let a=[90,180,-90,-180];
+  line.forEach(p=>{a[0]=Math.min(a[0],p[0]);a[1]=Math.min(a[1],p[1]);a[2]=Math.max(a[2],p[0]);a[3]=Math.max(a[3],p[1]);});
+  return [a[0]-pad,a[1]-pad,a[2]+pad,a[3]+pad];
+}
+
+/* ---------- Route catalogue (in the product: Mapbox Directions) ---------- */
+const PLACES = {koeniz:"Köniz Zentrum", bern_hb:"Bern Bahnhof", buempliz:"Bümpliz", wankdorf:"Wankdorf", ostermundigen:"Ostermundigen", wabern:"Wabern"};
+/* ======================================================================
+   STRECKEN-KATALOG
+   Geometrie: vereinfachte Skizze (im Produkt: Mapbox Directions).
+   Pro Abschnitt (zwischen zwei Punkten):
+     obj  = swissTLM3D OBJEKTART-Code des Abschnitts.
+            ⚠ DEMO-ZUORDNUNG von Hand. Im Produkt über die geo.admin-API
+            (Layer ch.swisstopo.swisstlm3d-strassen) pro Abschnitt abfragen,
+            siehe roadAttributes().
+     vph  = Verkehrsstärke in Fahrzeugen/Stunde zur Spitzenstunde.
+            ⚠ DEMO-BEISPIELWERTE, KEINE MESSWERTE. Werden nur verwendet,
+            solange keine echte Quelle angebunden ist, siehe getTrafficVolume().
+   innerorts = gilt für die ganze Strecke (Autobahn-Abschnitte ignorieren es).
+   ====================================================================== */
+const LINES = {
+  "koeniz>bern_hb":{via:"Schwarzenburgstrasse", min:17, innerorts:true,
+    obj:[8,8,8,8,8,8,8,8], vph:[600,700,780,860,820,700,560,480],
+    pts:[[46.9244,7.4146],[46.9275,7.4180],[46.9310,7.4215],[46.9350,7.4255],[46.9395,7.4295],[46.9425,7.4335],[46.9455,7.4370],[46.9478,7.4385],[46.9490,7.4390]],
+    alts:[
+      {via:"Könizstrasse – Freiburgstrasse", min:19, innerorts:true, obj:[20,20,20,20,20,20], vph:[350,380,420,460,500,420],
+        pts:[[46.9244,7.4146],[46.9290,7.4130],[46.9340,7.4150],[46.9400,7.4200],[46.9450,7.4290],[46.9480,7.4360],[46.9490,7.4390]]},
+      {via:"Weissenbühl – Monbijou", min:16, innerorts:true, obj:[9,20,20,8,8,8,8], vph:[300,520,610,700,760,640,560],
+        pts:[[46.9244,7.4146],[46.9260,7.4230],[46.9300,7.4300],[46.9350,7.4350],[46.9400,7.4380],[46.9455,7.4370],[46.9478,7.4385],[46.9490,7.4390]]}
+    ]},
+  "buempliz>wankdorf":{via:"A1 Weyermannshaus – Felsenau", min:14, innerorts:true,
+    obj:[20,20,0,2,2,2,2,2], vph:[520,600,900,3000,3300,3100,3450,3250],
+    pts:[[46.9440,7.3900],[46.9470,7.3850],[46.9500,7.3800],[46.9495,7.3980],[46.9490,7.4150],[46.9580,7.4200],[46.9600,7.4330],[46.9700,7.4420],[46.9670,7.4640]],
+    alts:[{via:"Murtenstrasse – Länggasse – Tiefenau", min:18, innerorts:true, obj:[20,8,8,8,8,20], vph:[480,650,700,680,620,500],
+      pts:[[46.9440,7.3900],[46.9455,7.4050],[46.9470,7.4200],[46.9510,7.4300],[46.9560,7.4400],[46.9620,7.4500],[46.9670,7.4640]]}]},
+  "ostermundigen>wankdorf":{via:"Ostermundigenstrasse", min:9, innerorts:true,
+    obj:[8,8,8], vph:[540,610,500],
+    pts:[[46.9560,7.4870],[46.9570,7.4760],[46.9580,7.4660],[46.9630,7.4650]],
+    alts:[{via:"Bolligenstrasse", min:11, innerorts:true, obj:[20,20,20], vph:[320,360,400],
+      pts:[[46.9560,7.4870],[46.9610,7.4830],[46.9650,7.4740],[46.9630,7.4650]]}]},
+  "wabern>bern_hb":{via:"Seftigenstrasse – Monbijou", min:13, innerorts:true,
+    obj:[8,8,8,8,8,8,8], vph:[450,540,720,810,680,560,470],
+    pts:[[46.9290,7.4510],[46.9330,7.4440],[46.9370,7.4370],[46.9395,7.4330],[46.9425,7.4335],[46.9455,7.4370],[46.9478,7.4385],[46.9490,7.4390]],
+    alts:[{via:"Kirchenfeld – Kirchenfeldbrücke", min:15, innerorts:true, obj:[20,20,20,8,8], vph:[360,440,520,500,420],
+      pts:[[46.9290,7.4510],[46.9360,7.4530],[46.9430,7.4500],[46.9470,7.4480],[46.9485,7.4430],[46.9490,7.4390]]}]}
+};
+function flip(l){ return Object.assign({}, l, {obj:l.obj.slice().reverse(), vph:l.vph.slice().reverse(), pts:l.pts.slice().reverse()}); }
+function lineFor(from,to){
+  let L = LINES[from+">"+to];
+  if(!L){ const r = LINES[to+">"+from]; if(!r) return null; L = Object.assign(flip(r), {alts:r.alts.map(flip)}); }
+  return Object.assign({}, L, {alt:L.alts[0]}); // .alt bleibt für bestehenden Code erhalten
+}
+
+/* ======================================================================
+   MODUL 1: VERKEHRSDATEN
+   Reihenfolge der Quellen: erste angebundene Quelle mit Wert gewinnt.
+   Keine Quelle liefert erfundene Live-Werte: nicht angebundene Quellen
+   geben null zurück und nennen den Grund.
+   ====================================================================== */
+const TRAFFIC_SOURCES = [
+  { id:"astra_rt", name:"ASTRA Echtzeit-Verkehrszähler",
+    detail:"opentransportdata.swiss, DATEX II MeasuredData (minütlich, Fahrzeuge und Geschwindigkeit pro Messstelle)",
+    kind:"live", connected:false,
+    reason:"Braucht einen API-Token (kostenlose Registrierung auf api-manager.opentransportdata.swiss). Der Token gehört ins Backend (Xano), nicht in die App. Deckt nur Strecken mit ASTRA-Messstelle ab, v. a. Nationalstrassen.",
+    fetch: async (seg) => null   // TODO Backend: pullMeasuredData für die Messstelle nächst seg.mid
+  },
+  { id:"ksvd", name:"Kanton Bern, Kantonsstrassenverkehrsdaten (KSVD)",
+    detail:"Geoportal Kanton Bern, Dienst «Verkehrsthemen des Kantons Bern» (WMS/WFS). Jahreswerte, keine Echtzeit.",
+    kind:"statistic", connected:false,
+    reason:"Geodienst ist öffentlich, liefert aber Jahreswerte (DTV) statt Stundenwerten. Umrechnung auf Stunden siehe dtvToHourlyEstimate(). Abruf aus der veröffentlichten Vorschau technisch blockiert, daher im Backend einlesen.",
+    fetch: async (seg) => null   // TODO Backend: WFS GetFeature im Umkreis von seg.mid, Attribut DTV lesen
+  },
+  { id:"demo", name:"Demo-Beispieldaten",
+    detail:"Von Hand gesetzte Werte pro Abschnitt, damit die Logik vorführbar ist.",
+    kind:"demo", connected:true, reason:"Keine Messwerte. Nur für Vorführung und User-Tests.",
+    fetch: async (seg, hour) => ({ vph: Math.round(seg.demoVph * demoHourFactor(hour)) })
+  }
+];
+// ⚠ DEMO-Tagesprofil, nicht gemessen: Spitze 6:30–9:00 und 16:30–19:00 = 100 %, sonst 45 %.
+function demoHourFactor(h){ return (h>=6.5&&h<9)?1 : (h>=16.5&&h<19)?0.95 : 0.45; }
+// ⚠ SCHÄTZUNG für spätere KSVD-Anbindung: Spitzenstunde ≈ 10 % des DTV (verbreitete Faustregel,
+// muss mit echten Stundenganglinien, z. B. ASTRA SASVZ, geprüft werden). Aktuell nicht verwendet.
+function dtvToHourlyEstimate(dtv, share){ return Math.round(dtv*(share||0.10)); }
+
+async function getTrafficVolume(seg, hour){
+  const tried = [];
+  for(const src of TRAFFIC_SOURCES){
+    if(!src.connected){ tried.push(src.id); continue; }
+    const v = await src.fetch(seg, hour);
+    if(v) return {vph:v.vph, source:src.id, kind:src.kind, tried};
+  }
+  return {vph:null, source:null, kind:"none", tried};
+}
+
+/* ======================================================================
+   MODUL 2: KAPAZITÄTSSCHÄTZUNG
+   Es gibt keinen öffentlichen Datensatz mit «max. Fahrzeuge pro Stunde»
+   pro Strassenabschnitt. Deshalb Schätzung aus Strassenattributen.
+   ALLE WERTE SIND APP-ANNAHMEN (grobe Grössenordnungen aus der
+   Verkehrstechnik), KEINE OFFIZIELLEN SCHWEIZER WERTE. Vor echtem
+   Einsatz mit Fachstelle (z. B. Tiefbauamt, VSS-Normen) validieren.
+   ====================================================================== */
+// swissTLM3D OBJEKTART (Codes gemäss swisstopo-Objektkatalog)
+const TLM_OBJEKTART = {0:"Einfahrt",1:"Ausfahrt",2:"Autobahn",8:"10m Strasse",9:"6m Strasse",10:"4m Strasse",20:"8m Strasse",21:"Autostrasse"};
+// Annahme: Fahrzeuge pro Stunde und Fahrstreifen
+const CAPACITY_PER_LANE = {
+  2:  {aus:1800, inn:1800, lanes:2, note:"Autobahn, freie Strecke"},
+  21: {aus:1500, inn:1500, lanes:1, note:"Autostrasse"},
+  0:  {aus:1200, inn:1200, lanes:1, note:"Ein-/Ausfahrrampe"},
+  1:  {aus:1200, inn:1200, lanes:1, note:"Ein-/Ausfahrrampe"},
+  8:  {aus:1400, inn:900,  lanes:1, note:"Hauptstrasse; innerorts reduziert wegen Knoten und Lichtsignalen"},
+  20: {aus:1200, inn:800,  lanes:1, note:"Hauptstrasse schmaler; innerorts reduziert"},
+  9:  {aus:900,  inn:600,  lanes:1, note:"Nebenstrasse"},
+  10: {aus:500,  inn:400,  lanes:1, note:"Quartierstrasse"}
+};
+function estimateRoadCapacity(attr){
+  // attr: {objektart, innerorts, lanesPerDirection?}
+  // Fahrstreifen pro Richtung sind in swissTLM3D nicht enthalten → Annahme aus Tabelle,
+  // ausser der Wert wird übergeben (z. B. später aus kantonalen Daten).
+  const row = CAPACITY_PER_LANE[attr.objektart] || CAPACITY_PER_LANE[9];
+  const lanes = attr.lanesPerDirection || row.lanes;
+  const perLane = attr.objektart===2 || attr.objektart===21 || attr.objektart<=1 ? row.aus : (attr.innerorts ? row.inn : row.aus);
+  return { vph: perLane*lanes, estimated:true, lanes, lanesAssumed:!attr.lanesPerDirection,
+    basis:`${TLM_OBJEKTART[attr.objektart]||"unbekannt"}, ${lanes} Fahrstreifen/Richtung, ${attr.innerorts&&attr.objektart>2?"innerorts":"ausserorts"}: ${row.note}` };
+}
+// Schnittstelle für später: echte Attribute von swisstopo holen (geo.admin Identify, Layer ch.swisstopo.swisstlm3d-strassen).
+function roadAttributes(line, i){ return {objektart: line.obj[i], innerorts: line.innerorts, source:"demo"}; }
+
+/* ======================================================================
+   MODUL 3: AUSLASTUNG UND KLASSIFIKATION
+   Auslastung = Verkehrsstärke / Kapazität × 100
+   ⚠ Die Klassengrenzen sind eine VEREINFACHTE APP-KLASSIFIKATION,
+   KEINE offiziellen Schweizer Grenzwerte.
+   ====================================================================== */
+function utilization(vph, cap){ return vph==null ? null : Math.round(vph/cap*100); }
+const UTIL_CLASSES = [
+  {max:60,  label:"Freie Kapazität",        color:"var(--free)"},
+  {max:80,  label:"Erhöhte Belastung",      color:"var(--slow)"},
+  {max:95,  label:"Hohe Belastung",         color:"var(--jam)"},
+  {max:Infinity, label:"Nahe Kapazitätsgrenze", color:"var(--limit)"}
+];
+function classifyUtilization(u){ return u==null ? {label:"Keine Daten", color:"var(--line)"} : UTIL_CLASSES.find(c=>u<c.max); }
+function loadColor(u){ return classifyUtilization(u).color; }
+
+/* ======================================================================
+   MODUL 4: ROUTENBEWERTUNG
+   routeScore = travelTime + congestionPenalty + constructionPenalty + lengthPenalty
+   Kleiner = besser. Belastung verbietet keine Route, sie verschlechtert nur den Score.
+   Gewichte sind App-Annahmen und in User-Tests zu kalibrieren.
+   ====================================================================== */
+const SCORE = {
+  constructionDelayMin: 3,   // zusätzliche Fahrzeit pro Baustelle auf der Route (Annahme)
+  constructionPenalty: 5,    // Score-Malus pro Baustelle, zusätzlich zur Fahrzeit
+  congestionFrom: 60,        // ab dieser Auslastung (%) gibt es Malus
+  congestionPerPct: 0.25,    // Minuten Malus pro Prozentpunkt über congestionFrom
+  lengthPerKm: 0.5,          // Minuten Malus pro zusätzlichem Kilometer Umweg
+  betterBy: 2                // Alternative wird nur empfohlen, wenn Score mind. so viel besser ist
+};
+// Fahrzeit je Abschnitt nach BPR-Funktion (Bureau of Public Roads, Standardformel der
+// Verkehrsplanung): t = t0 × (1 + 0.15 × (v/c)^4)
+function bprTime(t0, v, c){ return v==null ? t0 : t0*(1+0.15*Math.pow(v/c,4)); }
+
+async function evaluateLine(l, hour, opts){
+  opts = opts||{};
+  const lens=[]; for(let i=0;i<l.pts.length-1;i++) lens.push(haversine(l.pts[i],l.pts[i+1]));
+  const total = lens.reduce((a,b)=>a+b,0);
+  const segs=[]; let t=0, sources=new Set(), missing=0;
+  for(let i=0;i<lens.length;i++){
+    const attr = roadAttributes(l,i);
+    const cap = estimateRoadCapacity(attr);
+    const tv = await getTrafficVolume({demoVph:l.vph[i], mid:l.pts[i]}, hour);
+    // Architektur für spätere Verteilung: bereits zugewiesene Fahrzeuge (opts.extraLoad) addieren
+    const vph = tv.vph==null ? null : tv.vph + ((opts.extraLoad||{})[i]||0);
+    if(tv.source) sources.add(tv.kind); else missing++;
+    const u = utilization(vph, cap.vph);
+    t += bprTime(l.min*lens[i]/total, vph, cap.vph);
+    segs.push({len:lens[i], vph, cap, u, attr});
+  }
+  const sites = sitesOn(l.pts);
+  t += sites.length*SCORE.constructionDelayMin;
+  const known = segs.filter(s=>s.u!=null);
+  const util = known.length ? Math.round(known.reduce((a,s)=>a+s.u*s.len,0)/known.reduce((a,s)=>a+s.len,0)) : null;
+  const peak = known.length ? known.reduce((m,s)=>s.u>m.u?s:m, known[0]) : null;
+  return {via:l.via, normal:l.min, min:Math.round(t), km:total/1000, segs, sites, util, peak,
+    pts:l.pts, loads:segs.map(s=>s.u), lens, total, dataKinds:[...sources], missing};
+}
+function routeScore(ev, baseKm){
+  const congestionPenalty = ev.util==null ? 0 : Math.max(0, ev.util-SCORE.congestionFrom)*SCORE.congestionPerPct;
+  const constructionPenalty = ev.sites.length*SCORE.constructionPenalty;
+  const lengthPenalty = Math.max(0, ev.km-baseKm)*SCORE.lengthPerKm;
+  return {total: ev.min + congestionPenalty + constructionPenalty + lengthPenalty, travelTime:ev.min, congestionPenalty, constructionPenalty, lengthPenalty};
+}
+async function evaluateRoutes(L, hour, opts){
+  const cands = [Object.assign({key:"main"}, L)].concat(L.alts.map((a,i)=>Object.assign({key:"alt"+i, altIdx:i}, a)));
+  const out = [];
+  for(const c of cands){ const ev = await evaluateLine(c, hour, opts); ev.key=c.key; ev.altIdx=c.altIdx; out.push(ev); }
+  const baseKm = out[0].km;
+  out.forEach(ev=>{ ev.score = routeScore(ev, baseKm); ev.detourMin = ev.min - L.min; ev.detourKm = ev.km - baseKm; });
+  const best = out.slice(1).reduce((b,e)=>e.score.total<b.score.total?e:b, out[0]);
+  const recommended = (best!==out[0] && out[0].score.total-best.score.total>=SCORE.betterBy) ? best : out[0];
+  return {candidates:out, recommended};
+}
+
+/* ---------- Baustellen-Abgleich für beliebige Linien ---------- */
+function sitesOn(pts){
+  const dense=densify(pts,20), bb=bbox(pts,0.01), out=[];
+  for(const inc of incidents){
+    if(!inc.aktiv||inc.lat<bb[0]||inc.lat>bb[2]||inc.lon<bb[1]||inc.lon>bb[3]) continue;
+    let best=Infinity; for(const p of dense){const d=haversine(p,[inc.lat,inc.lon]); if(d<best) best=d;}
+    if(best<=THRESHOLD_M) out.push({inc,dist:Math.round(best)});
+  }
+  return out;
+}
+function ensureData(){
+  if(incidents.length) return;
+  incidents = importAstra().concat(importBern()).map(i=>Object.assign(i,{aktiv:isRelevant(i)}));
+  matches = match().res; lastRun = new Date(TODAY);
+}
+async function checkRoute(r,hour){
+  ensureData();
+  const L=lineFor(r.from,r.to);
+  const res = await evaluateRoutes(L,hour);
+  const main = res.candidates[0], rec = res.recommended;
+  return {hour, main, candidates:res.candidates, rec, better: rec!==main, saves: main.min-rec.min, alt:rec};
+}
+const hourOf = t => { const [h,m]=t.split(":").map(Number); return h+m/60; };
+const todayKey = () => TODAY.toISOString().slice(0,10);
+const RIVER = [[46.9290,7.4580],[46.9380,7.4540],[46.9440,7.4500],[46.9465,7.4560],[46.9500,7.4535],[46.9515,7.4460],[46.9535,7.4400],[46.9600,7.4370],[46.9680,7.4410],[46.9720,7.4350],[46.9760,7.4250]];
+
+/* ---------- Import pipelines ---------- */
+function importAstra(){
+  const doc = new DOMParser().parseFromString(DATEX_XML,"application/xml");
+  const recs = doc.getElementsByTagNameNS("*","situationRecord");
+  const out = [];
+  for(const r of recs){
+    const q = t => (r.getElementsByTagNameNS("*",t)[0]||{}).textContent;
+    out.push({id:r.getAttribute("id"), quelle:"astra", titel:q("value"),
+      typ:r.getAttributeNS("http://www.w3.org/2001/XMLSchema-instance","type"),
+      start:q("overallStartTime").slice(0,10), ende:q("overallEndTime").slice(0,10),
+      lat:parseFloat(q("latitude")), lon:parseFloat(q("longitude"))});
+  }
+  return out;
+}
+function importBern(){
+  return KOER_GEOJSON.features.map(f=>{
+    const ring = f.geometry.coordinates[0].slice(0,-1);
+    const E = ring.reduce((s,p)=>s+p[0],0)/ring.length, N = ring.reduce((s,p)=>s+p[1],0)/ring.length;
+    const [lat,lon] = lv95ToWgs84(E,N);
+    const p = f.properties;
+    return {id:"KOER-"+p.OBJECTID, quelle:"stadt_bern", titel:p.Locality+": "+p.Project, typ:p.StatusTxt,
+      start:p.StartDate, ende:p.EndDate, lat, lon, lv95:[E,N]};
+  });
+}
+function isRelevant(inc){
+  const s=new Date(inc.start+"T00:00:00"), e=new Date(inc.ende+"T23:59:59");
+  const horizon = new Date(TODAY.getTime()+7*86400000);
+  return s<=horizon && e>=TODAY;
+}
+function match(){
+  const t0 = performance.now(); const res={}; let checks=0, boxed=0;
+  for(const r of S.routes){
+    const L = lineFor(r.from,r.to); if(!L){res[r.id]=[];continue;}
+    const dense = densify(L.pts,20), bb = bbox(L.pts,0.01), hits=[];
+    for(const inc of incidents){
+      if(!inc.aktiv) continue;
+      checks++;
+      if(inc.lat<bb[0]||inc.lat>bb[2]||inc.lon<bb[1]||inc.lon>bb[3]) continue;
+      boxed++;
+      let best=Infinity; for(const p of dense){ const d=haversine(p,[inc.lat,inc.lon]); if(d<best) best=d; }
+      if(best<=THRESHOLD_M) hits.push({inc, dist:Math.round(best)});
+      else res["_near_"+r.id]=(res["_near_"+r.id]||[]).concat([{inc,dist:Math.round(best)}]);
+    }
+    res[r.id]=hits;
+  }
+  return {res, ms:performance.now()-t0, checks, boxed};
+}
+
+
+
+/* ======================================================================
+   ZUSTAND
+   ====================================================================== */
+const FRESH = () => ({ routes:[], reports:[], xp:0, badges:[], stats:{savedMin:0, reroutes:0, reports:0, streak:0}, nextId:1, onboarded:false });
+let S = FRESH();
+let incidents = [], matches = {}, lastRun = null;
+let view = {name:"onboarding"}, lockState = null, checkRes = {}, checkMode = "dep", showAlt = false, draft = null, reportDraft = null;
+let FAST = false; // true während die Story Schritte im Hintergrund nachspielt
+
+const $ = id => document.getElementById(id);
+const screen = $("screen"), appbar = $("appbar"), logEl = $("log");
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtD = s => new Date(s+"T00:00:00").toLocaleDateString("de-CH",{day:"numeric",month:"numeric"});
+const DAYN = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+const srcLabel = {astra:"ASTRA", stadt_bern:"Stadt Bern", crowd:"Community"};
+const srcCls = {astra:"astra", stadt_bern:"bern", crowd:"crowd"};
+const reduce = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wait = ms => new Promise(r=>setTimeout(r, (FAST||reduce())?0:ms));
+const LOG_PLACEHOLDER = `<span class="dim">Hier erscheint, was im Backend passiert, sobald die Story dort ankommt.</span>`;
+function log(html){ setTimeout(()=>{ const ml=document.querySelector(".story .log.mini"); if(ml){ ml.innerHTML=logEl.innerHTML; ml.scrollTop=ml.scrollHeight; } },0); if(!logEl.dataset.used){ logEl.innerHTML=""; logEl.dataset.used="1"; } logEl.innerHTML += html+"\n"; logEl.scrollTop = logEl.scrollHeight; }
+function setClock(t){ $("clock").textContent = t; }
+
+/* ======================================================================
+   ICONS (eigene Linien-Icons, keine Emojis)
+   ====================================================================== */
+const ICONS = {
+  route:'<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h5a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h5"/>',
+  bell:'<path d="M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+  coin:'<circle cx="12" cy="12" r="8"/><path d="M9.5 9.5h3.5a1.7 1.7 0 0 1 0 3.4h-3.5v-3.4zM9.5 12.9h4a1.8 1.8 0 0 1 0 3.6h-4z"/>',
+  radar:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 12l5.5-5.5"/>',
+  detour:'<path d="M5 20v-5a3 3 0 0 1 3-3h8a3 3 0 0 0 3-3V4"/><path d="M16 7l3-3 3 3"/>',
+  cone:'<path d="M10 4h4l4.5 15h-13z"/><path d="M8.2 10h7.6M7 14.5h10"/><path d="M3.5 19.5h17"/>',
+  flame:'<path d="M12 21c-3.5 0-6-2.5-6-6 0-3.8 3.5-6 4-10 3 2 8 5.5 8 10 0 3.5-2.5 6-6 6z"/><path d="M12 21c-1.5 0-2.5-1.2-2.5-2.7 0-1.8 1.5-2.8 2.5-4.3 1 1.5 2.5 2.5 2.5 4.3 0 1.5-1 2.7-2.5 2.7z"/>',
+  star:'<path d="M12 3.5l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/>',
+  clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',
+  pin:'<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  map:'<path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6z"/><path d="M9 4v14M15 6v14"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  back:'<path d="M15 5l-7 7 7 7"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  info:'<circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.5"/>',
+  user:'<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.5 4-5 7-5s5.8 1.5 7 5"/>',
+  cal:'<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>'
+};
+const icon = (n, cls) => `<svg class="i ${cls||""}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+
+/* ======================================================================
+   GAMIFICATION
+   Brum-Punkte (BP) belohnen Verhalten, das dem Verkehr hilft:
+   vor der Abfahrt prüfen, entlastende Route nehmen, Baustellen melden.
+   Im Prototyp ohne Geldwert. Einlösen bei Partnern = Idee, nicht validiert.
+   ====================================================================== */
+const LEVELS = [
+  {min:0,   name:"Stau-Neuling"},
+  {min:100, name:"Pendel-Profi"},
+  {min:250, name:"Umfahrungs-Ass"},
+  {min:500, name:"Verkehrs-Flüsterer"}
+];
+const BADGES = {
+  first:  {ic:"route",  name:"Erste Strecke",   how:"Strecke speichern"},
+  checker:{ic:"radar",  name:"Lagecheck",       how:"Vor Abfahrt prüfen"},
+  reroute:{ic:"detour", name:"Entlastung",     how:"Empfehlung nehmen"},
+  scout:  {ic:"cone",   name:"Baustellen-Scout",how:"Baustelle melden"},
+  streak5:{ic:"flame",  name:"5 Tage am Stück", how:"5 Tage clever pendeln"},
+  level2: {ic:"star",   name:"Level 2",         how:"100 BP erreichen"}
+};
+const REWARD = { firstRoute:50, check:10, reroute:30, report:20, dayDone:15 };
+function levelOf(xp){ let i=0; LEVELS.forEach((l,k)=>{ if(xp>=l.min) i=k; }); return i; }
+function levelProgress(xp){
+  const i=levelOf(xp), cur=LEVELS[i], next=LEVELS[i+1];
+  return {i, cur, next, pct: next ? Math.round((xp-cur.min)/(next.min-cur.min)*100) : 100};
+}
+let rewardTimer;
+function addXP(n, why, badge, quiet){
+  const before = levelOf(S.xp);
+  S.xp += n;
+  if(badge && !S.badges.includes(badge)) S.badges.push(badge);
+  const after = levelOf(S.xp);
+  if(after>before && !S.badges.includes("level2")) S.badges.push("level2");
+  if(quiet||FAST) return after>before;
+  $("rwPts").textContent = "+"+n; $("rwWhy").textContent = why;
+  const r=$("reward"); r.classList.add("show"); clearTimeout(rewardTimer);
+  rewardTimer = setTimeout(()=>r.classList.remove("show"), 2600);
+  render();
+  if(after>before) setTimeout(()=>showLevelUp(after), reduce()?0:900);
+  return after>before;
+}
+function showLevelUp(i){
+  openSheet(`<div class="levelup"><div class="n">${i+1}</div><h3>${LEVELS[i].name}</h3>
+    <p>Level ${i+1} erreicht. ${LEVELS[i+1]?`Nächstes Ziel: ${LEVELS[i+1].name} ab ${LEVELS[i+1].min} BP.`:"Höchstes Level."}</p>
+    <button class="btn y" id="lvOk">Weiter</button></div>`);
+  $("lvOk").onclick = closeSheet;
+}
+function ring(pct){
+  const r=19, c=2*Math.PI*r;
+  return `<svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="${r}" fill="none" stroke="var(--s2)" stroke-width="3"/><circle cx="22" cy="22" r="${r}" fill="none" stroke="var(--yellow)" stroke-width="3" stroke-linecap="round" stroke-dasharray="${(c*pct/100).toFixed(1)} ${c.toFixed(1)}" style="transition:stroke-dasharray .6s ease"/></svg>`;
+}
+function meHeader(){
+  const p = levelProgress(S.xp);
+  return `<div class="me">
+    <div class="ring" role="img" aria-label="Level ${p.i+1}, ${p.pct} Prozent bis zum nächsten">${ring(p.pct)}<span>M</span></div>
+    <div class="who"><small>Level ${p.i+1}</small><b>${p.cur.name}</b></div>
+    <div class="bp tnum" title="Brum-Punkte">${S.xp}<small>BP</small></div>
+  </div>`;
+}
+function openSheet(html){ $("sheetInner").innerHTML=html; $("sheet").classList.add("show"); }
+function closeSheet(){ $("sheet").classList.remove("show"); }
+$("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") closeSheet(); });
+
+/* ======================================================================
+   APP-OBERFLÄCHE
+   ====================================================================== */
+const TABS = [["home","route","Strecken"],["map","map","Karte"],["report","cone","Melden"],["profile","user","Profil"]];
+$("tabbar").innerHTML = TABS.map(([k,ic,l])=>`<button data-go="${k}">${icon(ic)}${l}</button>`).join("");
+function go(name,param){ view={name,param}; render(); screen.scrollTop=0; }
+document.querySelectorAll("#tabbar button").forEach(b=>b.addEventListener("click",()=>go(b.dataset.go)));
+function render(){
+  $("lock").classList.toggle("hidden", !lockState);
+  if(lockState) renderLock();
+  const noTabs=["onboarding","new"].includes(view.name);
+  $("tabbar").classList.toggle("hidden", noTabs); document.body.classList.toggle("notabs", noTabs);
+  document.querySelectorAll("#tabbar button").forEach(b=>b.setAttribute("aria-current", b.dataset.go===view.name || (view.name==="detail"&&b.dataset.go==="home")));
+  ({onboarding:renderOnboarding, home:renderHome, new:renderNew, detail:renderDetail, map:renderMapScreen, report:renderReport, profile:renderProfile})[view.name]();
+}
+function daysText(d){ return d.length===5 && [1,2,3,4,5].every(x=>d.includes(x)) ? "Mo–Fr" : d.slice().sort().map(x=>DAYN[x]).join(", "); }
+function chosenAlt(r,L){ return r.altDay===todayKey() && L.alts[r.altIdx||0] ? L.alts[r.altIdx||0] : null; }
+
+/* --- Sperrbildschirm --- */
+function renderLock(){
+  const L = lockState;
+  $("lock").innerHTML = `<div class="date">${L.date}</div><div class="time tnum">${L.time}</div>
+    ${L.notif ? `<button class="notif" id="notif"><span class="app">${icon("cone")}</span><span><b>${esc(L.notif.title)}</b><span>${esc(L.notif.body)}</span><small>Brumdrumherum, jetzt</small></span></button>`
+             : `<div class="sleep">${L.sleep||""}</div>`}
+    <div class="hint">${L.notif?"Nachricht antippen, um sie zu öffnen":""}</div>`;
+  const n=$("notif"); if(n) n.onclick = ()=>{ lockState=null; go("detail", S.routes[0].id); tourHook("openPush"); };
+}
+
+/* --- Onboarding --- */
+function renderOnboarding(){
+  appbar.innerHTML = "";
+  screen.innerHTML = `<div class="onb">
+    <h1 class="word"><span>brum</span><span>drum</span><span>herum</span></h1>
+    <svg class="detour" viewBox="0 0 340 90" aria-hidden="true">
+      <rect class="blk" x="130" y="34" width="80" height="22" rx="6"/>
+      <path class="main" d="M10 45 H330"/>
+      <path class="alt" d="M10 45 H100 C118 45 118 12 140 12 H200 C222 12 222 45 240 45 H330"/>
+      <g transform="translate(160,38)" fill="none" stroke="var(--yellow)" stroke-width="1.6" stroke-linejoin="round"><path d="M8 0h4l3.5 13h-11z"/><path d="M1 13h18"/></g>
+    </svg>
+    <p class="lead">Dein stiller Wächter für den Arbeitsweg. Warnt vor Baustellen, bevor du losfährst.</p>
+    <div class="feat"><span class="ic">${icon("route")}</span><div><b>Strecke einmal speichern</b><span>Arbeitsweg, Einkauf, Hobby. Die App schaut im Hintergrund.</span></div></div>
+    <div class="feat"><span class="ic">${icon("bell")}</span><div><b>Nachricht vor der Abfahrt</b><span>Nur wenn wirklich etwas auf deinem Weg liegt.</span></div></div>
+    <div class="feat"><span class="ic">${icon("coin")}</span><div><b>Punkte fürs clevere Pendeln</b><span>Für Umfahrungen, die den Verkehr entlasten.</span></div></div>
+    <div style="margin-top:auto;padding-top:22px">
+      <button class="btn y" id="start">Los geht's</button>
+      <p class="note" style="text-align:center">Web-App ohne App Store. Push-Erlaubnis folgt im nächsten Schritt.</p>
+    </div></div>`;
+  $("start").onclick = ()=>{ S.onboarded=true; startDraft(); go("new"); tourHook("start"); };
+}
+
+/* --- Neue Strecke --- */
+function startDraft(){ draft = draft || {from:"koeniz", to:"bern_hb", time:"07:40", days:[1,2,3,4,5], name:"Arbeitsweg"}; }
+function renderNew(){
+  startDraft();
+  appbar.innerHTML = `${S.routes.length?`<button class="back" id="back">${icon("back")}Abbrechen</button>`:""}<h2 class="h1">Neue Strecke</h2><p class="lead" style="margin:0">Wohin fährst du regelmässig?</p>`;
+  if($("back")) $("back").onclick=()=>{draft=null;go("home");};
+  const opts = sel => Object.entries(PLACES).map(([k,v])=>`<option value="${k}" ${k===sel?"selected":""}>${v}</option>`).join("");
+  const L = lineFor(draft.from, draft.to);
+  screen.innerHTML = `
+    <label class="f" for="nName">Name</label><input id="nName" type="text" value="${esc(draft.name)}">
+    <div class="row"><div style="flex:1"><label class="f" for="nFrom">Start</label><select id="nFrom">${opts(draft.from)}</select></div>
+      <div style="flex:1"><label class="f" for="nTo">Ziel</label><select id="nTo">${opts(draft.to)}</select></div></div>
+    <div class="mapbox" style="margin-top:16px">${L?mapSVG(L.pts,[],{h:180}):`<p class="note" style="padding:16px">Für diese Kombination ist im Prototyp keine Strecke hinterlegt. Probiere Köniz → Bern Bahnhof.</p>`}</div>
+    ${L?`<p class="note" style="margin-top:-6px">Via ${esc(L.via)}, rund ${L.min} Minuten</p>`:""}
+    <label class="f" for="nTime">Übliche Abfahrt</label><input type="time" id="nTime" value="${draft.time}">
+    <label class="f">Tage</label><div class="days">${[1,2,3,4,5,6,0].map(d=>`<button type="button" data-d="${d}" aria-pressed="${draft.days.includes(d)}">${DAYN[d]}</button>`).join("")}</div>
+    <div class="err" id="nErr" role="alert"></div>
+    <button class="btn y" id="nSave" ${L?"":"disabled"}>Strecke überwachen</button>
+    <p class="note">Gespeichert wird nur die Linie der Strecke, kein Standortverlauf.</p>`;
+  const sync=()=>{ draft.name=$("nName").value; draft.from=$("nFrom").value; draft.to=$("nTo").value; draft.time=$("nTime").value; };
+  $("nFrom").onchange=$("nTo").onchange=()=>{sync();renderNew();};
+  $("nName").oninput=$("nTime").onchange=sync;
+  screen.querySelectorAll(".days button").forEach(b=>b.onclick=()=>{sync();const d=+b.dataset.d;draft.days=draft.days.includes(d)?draft.days.filter(x=>x!==d):draft.days.concat(d);renderNew();});
+  $("nSave").onclick=()=>{
+    sync();
+    if(draft.from===draft.to){ $("nErr").textContent="Start und Ziel sind gleich. Wähle ein anderes Ziel."; return; }
+    if(!draft.days.length){ $("nErr").textContent="Wähle mindestens einen Tag."; return; }
+    saveDraft(); tourHook("saveRoute");
+  };
+}
+function saveDraft(){
+  const r = {id:"r"+(S.nextId++), name:draft.name.trim()||PLACES[draft.from]+" → "+PLACES[draft.to], from:draft.from, to:draft.to, time:draft.time||"07:40", days:draft.days.slice(), on:true};
+  S.routes.push(r); draft=null;
+  if(lastRun){ matches = match().res; }
+  const first = S.routes.length===1;
+  go("home");
+  if(first) addXP(REWARD.firstRoute, "Erste Strecke gespeichert", "first");
+  return r;
+}
+
+/* --- Start --- */
+function renderHome(){
+  appbar.innerHTML = meHeader();
+  const quests = [
+    {ic:"radar",  t:"Route vor der Abfahrt prüfen", done:S.badges.includes("checker"), rw:REWARD.check, p:S.badges.includes("checker")?1:0, of:1},
+    {ic:"detour", t:"Empfohlene Route nehmen, wenn es eng wird", done:S.stats.reroutes>=1, rw:REWARD.reroute, p:Math.min(1,S.stats.reroutes), of:1},
+    {ic:"flame",  t:"5 Arbeitstage clever pendeln", done:S.stats.streak>=5, rw:100, p:S.stats.streak, of:5}
+  ];
+  const cards = S.routes.map(r=>{
+    const L=lineFor(r.from,r.to), h=matches[r.id]||[], ch=chosenAlt(r,L);
+    const st = !lastRun ? `<span class="state">Wird überwacht</span>` : h.length ? `<span class="state warn">${h.length} Baustelle${h.length>1?"n":""}</span>` : `<span class="state ok">Frei</span>`;
+    return `<button class="route" data-id="${r.id}">
+      <div class="top"><div><h3>${esc(r.name)}</h3><div class="ft">${PLACES[r.from]} → ${PLACES[r.to]}</div></div>${st}</div>
+      <div class="lane ${lastRun&&h.length?"warn":""}" aria-hidden="true"></div>
+      <div class="facts"><span>${icon("clock")}${r.time}</span><span>${icon("cal")}${daysText(r.days)}</span><span>${L.min} Min.</span></div>
+      ${h.length?`<div class="msg">${esc(h[0].inc.titel)}${h.length>1?` und ${h.length-1} weitere`:""}</div>`:""}
+      ${ch?`<div class="today">Heute via ${esc(ch.via)}</div>`:""}
+    </button>`;}).join("");
+  screen.innerHTML = `<h2 class="h1">Meine Strecken</h2><p class="lead">${S.routes.length?`${S.routes.length} Strecke${S.routes.length>1?"n":""} unter Beobachtung`:"Noch keine Strecke gespeichert"}</p>
+    ${cards}
+    <button class="add" id="add">${icon("plus")}Neue Strecke</button>
+    <div class="label"><span>Quests</span><span>${S.xp} BP gesammelt</span></div>
+    <div class="list">${quests.map(q=>`<div class="li ${q.done?"done":""}"><span class="ic">${icon(q.done?"check":q.ic)}</span>
+      <div class="t">${q.t}${q.of>1?`<small>${q.p} von ${q.of}</small><div class="pbar"><i style="width:${q.p/q.of*100}%"></i></div>`:""}</div>
+      <span class="rw tnum">${q.done?"Erledigt":"+"+q.rw}</span></div>`).join("")}</div>`;
+  screen.querySelectorAll(".route").forEach(b=>b.onclick=()=>go("detail",b.dataset.id));
+  $("add").onclick=()=>go("new");
+}
+
+/* --- Karte ---
+   Signatur: Die empfohlene Umfahrung erscheint wie eine provisorische,
+   gelbe Baustellenmarkierung. Die übliche Route wie eine Strasse mit Mittellinie. */
+function mapSVG(highlight, hitList, opts){
+  opts=opts||{};
+  const W=360, H=opts.h||240;
+  const all=[].concat(...Object.values(LINES).map(l=>l.pts));
+  const b = highlight ? bbox(opts.alt?highlight.concat(opts.alt):highlight,0.004) : bbox(all,0.004);
+  const cos=Math.cos(46.95*Math.PI/180), scale=Math.min(W/((b[3]-b[1])*cos), H/(b[2]-b[0]));
+  const cx=(b[1]+b[3])/2, cy=(b[0]+b[2])/2;
+  const P = p => [(W/2+(p[1]-cx)*cos*scale).toFixed(1),(H/2-(p[0]-cy)*scale).toFixed(1)];
+  const path = pts => "M"+pts.map(p=>P(p).join(",")).join(" L");
+  const RL = 'stroke-linecap="round" stroke-linejoin="round" fill="none"';
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Karte">`;
+  s+=`<path d="${path(RIVER)}" stroke="var(--water)" stroke-width="12" ${RL}/>`;
+  Object.values(LINES).forEach(l=>{ [l].concat(l.alts).forEach(x=>{ s+=`<path d="${path(x.pts)}" stroke="var(--road)" stroke-width="4" ${RL}/>`; }); });
+  if(highlight){
+    if(opts.loads){
+      for(let i=0;i<highlight.length-1;i++) s+=`<path d="${path([highlight[i],highlight[i+1]])}" stroke="${loadColor(opts.loads[i])}" stroke-width="7" ${RL}/>`;
+    } else {
+      s+=`<path d="${path(highlight)}" stroke="var(--ink)" stroke-width="8" ${RL}/>`;
+    }
+    s+=`<path d="${path(highlight)}" stroke="var(--mapbg)" stroke-width="1.2" stroke-dasharray="5 6" ${RL}/>`;
+  }
+  if(opts.alt){
+    s+=`<path d="${path(opts.alt)}" stroke="var(--yellow)" stroke-width="5" stroke-dasharray="9 7" ${RL}/>`;
+  }
+  if(highlight){
+    const a=P(highlight[0]), z=P(highlight[highlight.length-1]);
+    s+=`<circle cx="${a[0]}" cy="${a[1]}" r="6" fill="var(--mapbg)" stroke="var(--ink)" stroke-width="2.5"/><circle cx="${z[0]}" cy="${z[1]}" r="6.5" fill="var(--ink)"/>`;
+  }
+  (hitList||[]).forEach(x=>{ const q=P([x.inc.lat,x.inc.lon]), crowd=x.inc.quelle==="crowd";
+    s+=`<g transform="translate(${q[0]},${q[1]})"><circle r="11" fill="${crowd?"var(--crowd)":"var(--yellow)"}"/><g transform="translate(-6,-6.5) scale(.5)" fill="none" stroke="#1C1603" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><path d="M10 4h4l4.5 15h-13z"/><path d="M3.5 19.5h17"/></g></g>`; });
+  return s+`</svg>`;
+}
+function siteRow(x){
+  const i=x.inc, q=i.quelle;
+  const when = i.start ? (new Date(i.start+"T00:00:00")>TODAY ? `ab ${fmtD(i.start)}` : `bis ${fmtD(i.ende)}`) : "heute gemeldet";
+  return `<div class="site ${q==="crowd"?"crowd":""}"><span class="ic">${icon("cone")}</span><div>
+    <div class="src ${srcCls[q]}">${srcLabel[q]}${q==="crowd"?", nicht verifiziert":""}</div>
+    <h4>${esc(i.titel)}</h4><p>${when}, ${x.dist} m von deiner Strecke</p></div></div>`;
+}
+function crowdHits(pts){
+  const dense=densify(pts,20);
+  return S.reports.map(p=>({inc:p, dist:Math.round(Math.min(...dense.map(q=>haversine(q,[p.lat,p.lon]))))})).filter(x=>x.dist<=THRESHOLD_M);
+}
+
+/* --- Streckendetail mit Routenvergleich --- */
+function renderDetail(){
+  const r=S.routes.find(x=>x.id===view.param); if(!r){go("home");return;}
+  const L=lineFor(r.from,r.to), ch=chosenAlt(r,L), cr=checkRes[r.id];
+  const hits=(matches[r.id]||[]).concat(crowdHits(L.pts));
+  appbar.innerHTML = `<button class="back" id="back">${icon("back")}Strecken</button><h2 class="h1" style="margin-top:0">${esc(r.name)}</h2><p class="lead" style="margin:0">${PLACES[r.from]} → ${PLACES[r.to]}, via ${ch?esc(ch.via)+" (heute)":esc(L.via)}</p>`;
+  $("back").onclick=()=>go("home");
+  const shown = cr ? (ch ? cr.candidates.find(c=>c.via===ch.via) : (showAlt && cr.better ? cr.rec : null)) : null;
+  screen.innerHTML = `<div class="mapbox" style="margin-top:8px">${mapSVG(L.pts, hits.concat(shown?shown.sites:[]), cr?{loads:cr.main.loads, alt:shown?shown.pts:null}:{})}
+      ${cr?`<div class="legend">${UTIL_CLASSES.map(c=>`<span><i style="background:${c.color}"></i>${c.label}</span>`).join("")}${shown?`<span><i style="background:var(--yellow)"></i>Umfahrung</span>`:""}</div>`:""}</div>
+    ${!lastRun ? `<div class="hintbox">${icon("info")}Das Backend gleicht die Baustellen regelmässig ab.</div>` : hits.length ? `<div class="label" style="margin-top:6px"><span>Auf deiner Strecke</span><span>${hits.length}</span></div><div class="sites">${hits.map(siteRow).join("")}</div>` : `<div class="okbox">Keine Baustelle auf dieser Strecke.</div>`}
+    <div class="label" id="cmp"><span>Routenvergleich</span><span>${cr?cr.candidates.length+" Routen":""}</span></div>
+    <div class="seg" role="group" aria-label="Zeitpunkt">
+      <button data-m="now" aria-pressed="${checkMode==="now"}">Jetzt, ${TODAY.toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit"})}</button>
+      <button data-m="dep" aria-pressed="${checkMode==="dep"}">Abfahrt, ${r.time}</button>
+    </div>
+    ${cr ? compareCards(r,cr,L,ch) : ""}
+    <button class="btn ${cr?"ghost":""}" id="checkBtn">${icon("radar")}${cr?"Erneut prüfen":"Route jetzt prüfen"}</button>`;
+  screen.querySelectorAll(".seg button").forEach(b=>b.onclick=async()=>{ checkMode=b.dataset.m; if(checkRes[r.id]){ await compareRoutes(r, modeHour(r), false); } render(); });
+  $("checkBtn").onclick = ()=>doCheck(r);
+  const sa=$("showAlt"); if(sa) sa.onclick=()=>{ showAlt=!showAlt; render(); };
+  screen.querySelectorAll("[data-take]").forEach(b=>b.onclick=()=>takeAlt(r, +b.dataset.take));
+}
+function modeHour(r){ return checkMode==="now" ? TODAY.getHours()+TODAY.getMinutes()/60 : hourOf(r.time); }
+async function doCheck(r){
+  const btn=$("checkBtn"); if(btn){ btn.disabled=true; btn.textContent="Routen werden verglichen …"; }
+  await compareRoutes(r, modeHour(r), true);
+  render();
+  if(!S.badges.includes("checker")) addXP(REWARD.check, "Lagecheck vor der Abfahrt", "checker");
+  tourHook("check");
+}
+function takeAlt(r, idx){
+  const L=lineFor(r.from,r.to), ch=chosenAlt(r,L);
+  if(ch && (r.altIdx||0)===idx){ r.altDay=null; render(); return; }
+  r.altDay=todayKey(); r.altIdx=idx;
+  const cr=checkRes[r.id], c=cr&&cr.candidates.find(x=>x.altIdx===idx);
+  log(`<span class="ok">App: Nutzer übernimmt «${esc(L.alts[idx].via)}» für heute. Zählt als zugewiesene Fahrt (Grundlage für spätere Verteilung).</span>`);
+  S.stats.reroutes++; if(c) S.stats.savedMin += Math.max(0, cr.main.min - c.min);
+  showAlt=true; render();
+  addXP(REWARD.reroute, "Entlastungs-Bonus", "reroute");
+  tourHook("takeAlt");
+}
+function compareCards(r,cr,L,ch){
+  const demo = cr.candidates.some(c=>c.dataKinds.includes("demo"));
+  const sorted = cr.candidates.slice().sort((a,b)=>(b===cr.rec)-(a===cr.rec));
+  return `${demo?`<div class="demo">${icon("info")}<span><b>Demo-Daten.</b> Verkehrsstärken sind Beispielwerte, die Kapazität ist aus der Strassenklasse geschätzt.</span></div>`:""}
+    ${sorted.map(c=>candCard(c,cr,ch)).join("")}`;
+}
+function candCard(c,cr,ch){
+  const cls=classifyUtilization(c.util), rec=c===cr.rec, chosen = ch && c.via===ch.via;
+  const name = c.key==="main" ? "Übliche Route" : `Alternative ${c.altIdx+1}`;
+  const extra = c.detourMin>0 ? `+${c.detourMin} Min. ${c.key==="main"?"Verzögerung":"Umweg"}` : c.detourMin<0 ? `${c.detourMin} Min.` : "wie üblich";
+  const km = c.key==="main" ? `${c.km.toFixed(1)} km` : `${c.detourKm>=0?"+":""}${c.detourKm.toFixed(1)} km`;
+  const sc=c.score;
+  return `<div class="cand ${rec?"rec":""}">
+    <div class="hd"><h4>${name}</h4>${chosen?`<span class="chip on">Heute gewählt</span>`:rec?`<span class="chip rec">Empfohlen${c.key!=="main"?`, +${REWARD.reroute} BP`:""}</span>`:""}</div>
+    <div class="via">${esc(c.via)}</div>
+    <div class="big"><b class="tnum">${c.min}<small>Min.</small></b><span>${extra}</span><span>${km}</span></div>
+    <div class="meter">
+      <div class="track" role="img" aria-label="Auslastung ${c.util} Prozent"><i style="width:${Math.min(100,c.util||0)}%;background:${cls.color}"></i></div>
+      <span class="l">Auslastung <b class="tnum">${c.util==null?"–":c.util+" %"}</b></span><span class="r" style="color:${cls.color}">${cls.label}</span>
+    </div>
+    <div class="foot">${c.sites.length?`${c.sites.length} Baustelle${c.sites.length>1?"n":""}`:"Keine Baustelle"}${c.peak?`, Engpass ${c.peak.u} %`:""}. Kapazität geschätzt${c.dataKinds.includes("demo")?`, <span class="tag">Verkehr Demo</span>`:""}.</div>
+    <details><summary>So bewertet</summary>Score ${sc.total.toFixed(1)} = Fahrzeit ${sc.travelTime} + Belastung ${sc.congestionPenalty.toFixed(1)} + Baustellen ${sc.constructionPenalty} + Umweg ${sc.lengthPenalty.toFixed(1)}. Tiefer ist besser. Engpass: ${c.peak?Math.round(c.peak.vph)+" von "+c.peak.cap.vph+" Fz/h":"–"}.</details>
+    ${c.key!=="main" && (rec||chosen) ? `<div class="row">
+      <button class="btn ${chosen?"ghost":"y"}" data-take="${c.altIdx}">${chosen?"Zurück zur üblichen Route":"Übernehmen"}</button>
+      ${chosen?"":`<button class="btn ghost" id="showAlt" style="width:auto;padding:12px 16px">${showAlt?"Karte aus":"Karte"}</button>`}</div>`:""}
+  </div>`;
+}
+
+/* --- Karte aller Baustellen --- */
+function renderMapScreen(){
+  appbar.innerHTML = meHeader();
+  const act=incidents.filter(i=>i.aktiv);
+  screen.innerHTML = `<h2 class="h1">Baustellen</h2><p class="lead">Rund um Bern, aus allen Quellen</p>
+    <div class="mapbox">${mapSVG(null, act.map(i=>({inc:i})).concat(S.reports.map(p=>({inc:p}))), {h:320})}</div>
+    <div class="list">
+      <div class="li"><span class="ic src astra">${icon("cone")}</span><span class="t">ASTRA<small>National- und Kantonsstrassen</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="astra").length}</span></div>
+      <div class="li"><span class="ic src bern">${icon("cone")}</span><span class="t">Stadt Bern<small>Gemeindestrassen, KOER</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="stadt_bern").length}</span></div>
+      <div class="li"><span class="ic src crowd">${icon("cone")}</span><span class="t">Community<small>nicht verifiziert</small></span><span class="rw tnum">${S.reports.length}</span></div>
+    </div>
+    ${lastRun?"":`<p class="note">Noch keine Daten geladen.</p>`}`;
+}
+
+/* --- Melden --- */
+const REPORT_SPOT = {lat:46.9372, lon:7.4176, where:"Könizstrasse, auf deiner heutigen Route"};
+function renderReport(){
+  appbar.innerHTML = meHeader();
+  reportDraft = reportDraft || {type:"Fahrbahn verengt"};
+  const types=["Fahrbahn verengt","Strasse gesperrt","Verkehrsdienst","Ohne Behinderung"];
+  screen.innerHTML = `<h2 class="h1">Baustelle melden</h2><p class="lead">Für alle, die nach dir kommen. +${REWARD.report} BP</p>
+    <div class="hintbox">${icon("info")}Nur im Stillstand. Während der Fahrt ist Melden gesperrt.</div>
+    <label class="f">Ort</label><div class="where">${icon("pin")}${REPORT_SPOT.where}</div>
+    <label class="f">Was ist los?</label>
+    <div class="opts">${types.map(t=>`<button data-t="${t}" aria-pressed="${reportDraft.type===t}">${t}</button>`).join("")}</div>
+    <div style="height:18px"></div>
+    <button class="btn y" id="rSend">Meldung senden</button>
+    <p class="note">Erscheint bei anderen als nicht verifiziert und löst keine Nachricht aus. Gespeichert werden nur Punkt und Art.</p>
+    ${S.reports.length?`<div class="label"><span>Deine Meldungen</span><span>${S.reports.length}</span></div><div class="sites">${S.reports.map(p=>`<div class="site crowd"><span class="ic">${icon("cone")}</span><div><div class="src crowd">Community</div><h4>${esc(p.titel)}</h4><p>${esc(p.where)}</p></div></div>`).join("")}</div>`:""}`;
+  screen.querySelectorAll(".opts button").forEach(b=>b.onclick=()=>{ reportDraft.type=b.dataset.t; renderReport(); });
+  $("rSend").onclick=()=>{ sendReport(); tourHook("report"); };
+}
+function sendReport(){
+  S.reports.push({id:"C"+Date.now(), quelle:"crowd", titel:reportDraft.type, where:REPORT_SPOT.where, lat:REPORT_SPOT.lat, lon:REPORT_SPOT.lon});
+  S.stats.reports++;
+  log(`<span class="ok">App: Community-Meldung «${esc(reportDraft.type)}» gespeichert (nicht verifiziert)</span>`);
+  reportDraft=null; render();
+  addXP(REWARD.report, "Danke für die Meldung", "scout");
+}
+
+/* --- Profil --- */
+function renderProfile(){
+  appbar.innerHTML = meHeader();
+  setTimeout(()=>{ const t=$("showTour"); if(t) t.onclick=()=>{ document.body.classList.remove("notour"); }; },0);
+  const p=levelProgress(S.xp);
+  const main = S.routes[0] && checkRes[S.routes[0].id] ? checkRes[S.routes[0].id].main : null;
+  screen.innerHTML = `<h2 class="h1">Deine Bilanz</h2><p class="lead">${p.next?`Noch ${p.next.min-S.xp} BP bis ${p.next.name}`:"Höchstes Level erreicht"}</p>
+    <div class="stats">
+      <div class="stat"><b class="tnum">${S.stats.savedMin}</b><span>Minuten gespart</span></div>
+      <div class="stat"><b class="tnum">${S.stats.reroutes}</b><span>Umfahrungen</span></div>
+      <div class="stat"><b class="tnum">${S.stats.reports}</b><span>Meldungen</span></div>
+      <div class="stat"><b class="tnum">${S.stats.streak}</b><span>Tage am Stück</span></div>
+    </div>
+    ${S.stats.reroutes && main ? `<div class="impact">Heute ein Auto weniger auf der ${esc(main.via)} zur Spitzenzeit. <span>Dort lag die Auslastung bei ${main.util} % (Demo-Daten).</span></div>`:""}
+    <div class="label"><span>Abzeichen</span><span>${S.badges.length} von ${Object.keys(BADGES).length}</span></div>
+    <div class="badges">${Object.entries(BADGES).map(([k,b])=>`<div class="badge ${S.badges.includes(k)?"":"locked"}"><div class="ic">${icon(b.ic)}</div><b>${b.name}</b><small>${S.badges.includes(k)?"Erhalten":b.how}</small></div>`).join("")}</div>
+    <button class="btn ghost tourbtn" id="showTour" style="margin-top:18px">${icon("route")}Story von A bis Z zeigen</button>
+    <p class="fine">Brum-Punkte haben im Prototyp keinen Geldwert. Einlösen bei Partnern ist eine Idee und noch nicht mit Partnern besprochen.</p>`;
+}
+
+/* ======================================================================
+   STORY-PANEL
+   ====================================================================== */
+function renderStory(){
+  const st=STEPS[cur], el=$("story");
+  const APPM = document.body.classList.contains("appmode");
+  el.innerHTML = `<div class="progress">${STEPS.map((s,k)=>`<button class="${k<cur?"done":k===cur?"cur":""}" aria-label="Schritt ${s.letter}: ${esc(s.title)}" data-k="${k}"></button>`).join("")}</div>
+    <div class="bar"><span class="letter">${st.letter}</span>
+      <button class="tt" id="tt" aria-expanded="${el.classList.contains("open")}"><small>${st.when}, ${el.classList.contains("open")?"zuklappen":"mehr lesen"}</small><b>${st.title}</b></button>
+      ${st.final?`<button class="go" id="restart2">Von vorne</button>`:`<button class="go" id="next2" ${busy?"disabled":""}>Weiter</button>`}
+      <button class="x" id="hideTour" aria-label="Story ausblenden">×</button></div>
+    <div class="stepno"><span class="letter">${st.letter}</span><span>${st.when}<br>Schritt ${cur+1} von ${STEPS.length}</span></div>
+    <h2>${st.title}</h2>
+    <button class="more" id="more">${el.classList.contains("open")?"Weniger":"Mehr lesen"}</button>
+    <div class="body">
+      <p>${st.text}</p>
+      ${st.tech?`<div class="tech">${st.tech}</div>`:""}
+      ${st.final?finalSummary():""}
+      ${APPM?`<div class="log mini">${logEl.innerHTML}</div>`:""}
+    </div>
+    <div class="ctrl">
+      <button id="prevBtn" ${cur===0||busy?"disabled":""}>Zurück</button>
+      ${st.final?`<button class="primary" id="restart">Von vorne</button>`:`<button class="primary" id="nextBtn" ${busy?"disabled":""}>${st.nextLabel||"Weiter"}</button>`}
+      ${st.expect&&!st.final?`<span class="tip">oder im Handy tippen</span>`:""}
+    </div>`;
+  $("prevBtn").onclick=prev;
+  if($("nextBtn")) $("nextBtn").onclick=next;
+  if($("restart")) $("restart").onclick=()=>gotoStep(0,true);
+  $("more").onclick=()=>{ el.classList.toggle("open"); renderStory(); };
+  $("tt").onclick=()=>{ el.classList.toggle("open"); renderStory(); };
+  if($("next2")) $("next2").onclick=()=>{ el.classList.remove("open"); next(); };
+  if($("restart2")) $("restart2").onclick=()=>gotoStep(0,true);
+  $("hideTour").onclick=()=>{ document.body.classList.add("notour"); };
+  const ml=el.querySelector(".log.mini"); if(ml) ml.scrollTop=ml.scrollHeight;
+  el.querySelectorAll(".progress button").forEach(b=>b.onclick=()=>{ const k=+b.dataset.k; if(k!==cur) gotoStep(k,true); });
+}
+function finalSummary(){
+  return `<div class="summary">
+    <div><h3>MODI-Kette</h3><ul><li>Anbieter 1: ASTRA, DATEX II</li><li>Anbieter 2: Stadt Bern KOER, GeoJSON in LV95</li><li>Nutzer: Brumdrumherum</li><li>Endnutzer: Max</li></ul></div>
+    <div><h3>Echt im Prototyp</h3><ul><li>Datenformate beider Anbieter</li><li>LV95-Umrechnung, 100-m-Abgleich</li><li>swissTLM3D-Strassenklassen</li><li>BPR-Fahrzeitformel</li></ul></div>
+    <div><h3>Demo oder geschätzt</h3><ul><li>Baustellen: nachgebaute Einträge</li><li>Verkehrsstärken: Demo-Werte</li><li>Kapazität: geschätzt</li><li>Push: simuliert</li></ul></div>
+    <div><h3>Nächste Schritte</h3><ul><li>ASTRA-Token, Echtdaten im Notebook</li><li>KSVD-Werte für die Strecken</li><li>User-Tests: motivieren die Punkte?</li></ul></div>
+  </div>`;
+}
+
+/* ======================================================================
+   BACKEND-ABLAUF (nutzt die Module von oben)
+   ====================================================================== */
+async function runPipeline(){
+  log(`<span class="dim">[05:00] Auslöser: GitHub Actions, Zeitplan alle 10 Minuten</span>`);
+  await wait(350); log(`GET opentransportdata.swiss, DATEX II Baustellen …`);
+  const a = importAstra(); await wait(350);
+  log(`<span class="ok">  ✓ ${a.length} Meldungen aus XML gelesen (ASTRA)</span>`);
+  log(`GET map.bern.ch/arcgis/rest/services/KOER/MapServer/…/query?f=geojson`);
+  const b = importBern(); await wait(350);
+  log(`<span class="ok">  ✓ ${b.length} Baustellen-Polygone gelesen (Stadt Bern)</span>`);
+  log(`<span class="dim">    LV95 → WGS84, z. B. ${b[0].id}: E ${b[0].lv95[0].toFixed(0)} / N ${b[0].lv95[1].toFixed(0)} → ${b[0].lat.toFixed(5)}, ${b[0].lon.toFixed(5)}</span>`);
+  incidents = a.concat(b).map(i=>Object.assign(i,{aktiv:isRelevant(i)}));
+  await wait(250); log(`Tabelle incidents: ${incidents.length} Einträge, ${incidents.filter(i=>i.aktiv).length} heute aktiv oder in 7 Tagen`);
+  const m = match(); matches = m.res; lastRun = new Date(TODAY);
+  await wait(300); log(`Abgleich mit ${S.routes.length} Strecke(n): ${m.checks} Prüfungen, ${m.boxed} nach Bounding Box, ${m.ms.toFixed(2)} ms`);
+  for(const r of S.routes){
+    const h = matches[r.id]||[];
+    log(h.length ? `<span class="warn">  ⚠ ${esc(r.name)}: ${h.length} Baustellen im 100-m-Korridor (${h.map(x=>x.dist+" m").join(", ")})</span>` : `<span class="ok">  ✓ ${esc(r.name)}: frei</span>`);
+    (matches["_near_"+r.id]||[]).filter(x=>x.dist<600).forEach(x=>log(`<span class="dim">    ${esc(x.inc.titel.split(":")[0])}: ${x.dist} m entfernt, kein Treffer</span>`));
+  }
+  const due = S.routes.filter(r=>(matches[r.id]||[]).length);
+  log(due.length ? `<span class="warn">Push eingeplant: 30 Min. vor Abfahrt (${due.map(r=>r.time).join(", ")})</span>` : `<span class="ok">Kein Push nötig</span>`);
+}
+async function compareRoutes(r, hour, verbose){
+  if(verbose){
+    log(`\n<span class="dim">Routenvergleich «${esc(r.name)}» für ${hour===hourOf(r.time)?"Abfahrt "+r.time:"jetzt"}</span>`);
+    for(const src of TRAFFIC_SOURCES){ await wait(180); log(src.connected ? `<span class="warn">  ${src.name}: aktiv${src.kind==="demo"?" (keine Messwerte)":""}</span>` : `<span class="dim">  ${src.name}: nicht angebunden</span>`); }
+    log(`<span class="dim">  Kapazität: estimateRoadCapacity() aus swissTLM3D-Strassenklasse (Schätzung)</span>`);
+  }
+  const res = await checkRoute(r, hour); checkRes[r.id] = res;
+  if(verbose){
+    res.candidates.forEach(c=>log(`  ${c.key==="main"?"Übliche Route":"Alternative"} via ${esc(c.via)}: ${c.min} Min., Auslastung ${c.util} %, ${c.sites.length} Baustelle(n), Score ${c.score.total.toFixed(1)}`));
+    log(res.better ? `<span class="warn">  → Empfehlung: via ${esc(res.rec.via)}</span>` : `<span class="ok">  → Übliche Route bleibt die beste Wahl</span>`);
+  }
+  return res;
+}
+
+/* ======================================================================
+   STORY VON A BIS Z
+   Jeder Schritt setzt die App in einen bestimmten Zustand. Beim Springen
+   werden alle vorherigen Schritte still nachgespielt, damit der Zustand stimmt.
+   ====================================================================== */
+const DATE_WED = "Mittwoch, 23. September", DATE_THU = "Donnerstag, 24. September";
+const STEPS = [
+  { letter:"A", title:"Max entdeckt Brumdrumherum", when:"Mittwochabend, 21:04",
+    text:"Max, 36, arbeitet in einer Apotheke beim Bahnhof Bern. Er fährt mit dem Auto von Köniz, weil er nach der Arbeit seine Mutter in Wabern betreut. Seit Wochen steht er morgens unerwartet im Stau. Ein Kollege schickt ihm den Link zur App.",
+    tech:"<b>Progressive Web App</b>, keine Installation aus dem App Store. «Zum Home-Bildschirm hinzufügen» genügt. Push funktioniert auf Android und ab iOS 16.4.",
+    expect:"start", nextLabel:"Max tippt auf «Los geht's»",
+    enter: async()=>{ setClock("21:04"); lockState=null; go("onboarding"); } },
+  { letter:"B", title:"Er speichert seinen Arbeitsweg", when:"Mittwochabend, 21:05",
+    text:"Max gibt Start und Ziel ein und stellt seine übliche Abfahrt ein: Montag bis Freitag um 07:40. Mehr muss er nicht tun.",
+    tech:"Die Route wird als Linie in der Xano-Tabelle <b>routes</b> gespeichert (WGS84). Kein GPS-Tracking, keine Bewegungsdaten. Im Produkt berechnet Mapbox die Linie.",
+    expect:"saveRoute", nextLabel:"Strecke überwachen",
+    enter: async()=>{ setClock("21:05"); S.onboarded=true; startDraft(); go("new"); } },
+  { letter:"C", title:"Erste Punkte, dann schläft die App", when:"Mittwochabend, 21:06",
+    text:"Für die erste Strecke gibt es 50 Brum-Punkte. Auf der Startseite sieht Max seine Strecke und drei Quests. Ab jetzt muss er die App nicht mehr öffnen.",
+    tech:"<b>Gamification</b> belohnt, was dem Verkehr hilft: vor der Abfahrt prüfen, entlastende Route nehmen, Baustellen melden. Die Punkte haben keinen Geldwert.",
+    enter: async()=>{ setClock("21:06"); if(!S.routes.length){ startDraft(); saveDraft(); } else go("home"); } },
+  { letter:"D", title:"Nachts arbeitet das Backend", when:"Donnerstag, 05:00",
+    text:"Während Max schläft, holt das Backend die Baustellen von zwei Anbietern, die bisher nicht verbunden sind, und legt sie über seine Strecke. Zwei Baustellen liegen im 100-Meter-Korridor.",
+    tech:"<b>ASTRA</b> liefert DATEX II (XML, WGS84), <b>Stadt Bern KOER</b> liefert GeoJSON-Polygone in LV95. Umrechnung mit der swisstopo-Formel, dann Bounding Box und Haversine. Genau diese Übersetzungsarbeit soll MODI künftig als gemeinsame Vermittlungsschicht übernehmen. Im Log rechts siehst du jeden Schritt.",
+    enter: async()=>{ setClock("05:00"); lockState={date:DATE_THU, time:"05:00", sleep:"Max schläft. Das Backend arbeitet."}; go("home"); await runPipeline(); render(); } },
+  { letter:"E", title:"07:10 Uhr: die Push-Nachricht", when:"Donnerstag, 07:10",
+    text:"30 Minuten vor der Abfahrt meldet sich die App. Die Nachricht nennt die Baustelle und schlägt gleich eine bessere Route vor.",
+    tech:"Vor dem Versand rechnet das Backend den <b>Routenvergleich</b> für 07:40: Baustellen, Fahrzeit, Auslastung und Umweg. Versand über Firebase Web Push.",
+    expect:"openPush", nextLabel:"Max tippt auf die Nachricht",
+    enter: async()=>{ setClock("07:10"); const r=S.routes[0]; checkMode="dep"; const c = await compareRoutes(r, hourOf(r.time), true); const h=matches[r.id]||[];
+      lockState={date:DATE_THU, time:"07:10", notif:{title:`${r.name}: 2 Baustellen auf deiner Strecke`, body:`${h[0]?h[0].inc.titel:""}. ${c.better?`Tipp: via ${c.rec.via}, ${c.rec.min} Min.`:"Plane mehr Zeit ein."}`}}; render(); log(`<span class="warn">Firebase Web Push an Max gesendet</span>`); } },
+  { letter:"F", title:"Was liegt auf dem Weg?", when:"Donnerstag, 07:11",
+    text:"Max sieht auf der Karte, wo die Baustellen liegen und woher die Information stammt: eine Gasleitung am Eigerplatz und eine Kanalsanierung an der Monbijoustrasse, beide von der Stadt Bern.",
+    tech:"Jede Baustelle zeigt ihre <b>Quelle</b> (ASTRA, Stadt Bern oder Community) und ihren Abstand zur Strecke. So bleibt nachvollziehbar, welcher Anbieter welche Daten liefert.",
+    expect:"check", nextLabel:"Route prüfen",
+    enter: async()=>{ setClock("07:11"); lockState=null; showAlt=false; delete checkRes[S.routes[0].id]; go("detail", S.routes[0].id); } },
+  { letter:"G", title:"Drei Routen im Vergleich", when:"Donnerstag, 07:12",
+    text:"Max prüft die Route. Die App vergleicht drei Wege. Die Route über Weissenbühl wäre fast gleich schnell, ist aber stärker ausgelastet und hat selbst eine Baustelle. Empfohlen wird deshalb die Könizstrasse mit freier Kapazität.",
+    tech:"Auslastung = Verkehrsstärke / geschätzte Kapazität. Score = Fahrzeit + Belastungsmalus + Baustellen + Umweg. <b>Verkehrsstärken sind Demo-Werte</b>, weil ASTRA-Echtzeit und KSVD noch nicht angebunden sind. Die Kapazität ist aus der swissTLM3D-Strassenklasse geschätzt.",
+    expect:"takeAlt", nextLabel:"Empfehlung übernehmen",
+    enter: async()=>{ setClock("07:12"); lockState=null; go("detail", S.routes[0].id); checkMode="dep"; await compareRoutes(S.routes[0], hourOf(S.routes[0].time), false); render(); if(!S.badges.includes("checker")) addXP(REWARD.check,"Lagecheck vor der Abfahrt","checker"); scrollToCmp(); } },
+  { letter:"H", title:"Er nimmt die entlastende Route", when:"Donnerstag, 07:13",
+    text:"Max übernimmt die Empfehlung für heute. Er spart Zeit und bekommt den Entlastungs-Bonus, weil er die volle Schwarzenburgstrasse meidet.",
+    tech:"Die Wahl wird im Backend als <b>zugewiesene Fahrt</b> gezählt. Später kann das System damit Pendelnde auf mehrere Umfahrungen verteilen, statt alle auf dieselbe zu schicken (Parameter extraLoad).",
+    enter: async()=>{ setClock("07:13"); lockState=null; go("detail", S.routes[0].id); const r=S.routes[0], cr=checkRes[r.id]; if(cr && cr.better && !r.altDay) takeAlt(r, cr.rec.altIdx); scrollToCmp(); } },
+  { letter:"I", title:"Unterwegs fällt ihm etwas auf", when:"Donnerstag, 07:34",
+    text:"Auf der Könizstrasse ist eine Fahrspur abgesperrt, die in keiner Quelle steht. Nach dem Parkieren meldet Max sie mit zwei Tipps.",
+    tech:"Community-Meldungen landen in einer eigenen Tabelle, sind als <b>nicht verifiziert</b> markiert und lösen keinen Push aus. Melden ist nur im Stillstand möglich.",
+    expect:"report", nextLabel:"Meldung senden",
+    enter: async()=>{ setClock("07:34"); lockState=null; reportDraft={type:"Fahrbahn verengt"}; go("report"); } },
+  { letter:"J", title:"Abends: Max sieht seine Bilanz", when:"Donnerstag, 18:05",
+    text:"Mit der Meldung und dem ersten geschafften Tag steigt Max auf Level 2. Im Profil sieht er gesparte Minuten, seine Abzeichen und was seine Umfahrung bewirkt hat.",
+    tech:"Tagesbonus für den ersten geschafften Arbeitstag. Der Streak motiviert, die App auch nächste Woche zu nutzen, und gibt euch Daten für die Wirksamkeit.",
+    enter: async()=>{ setClock("18:05"); lockState=null;
+      if(!S.stats.reports){ reportDraft={type:"Fahrbahn verengt"}; sendReport(); }
+      go("profile");
+      if(S.stats.streak===0){ S.stats.streak=1; addXP(REWARD.dayDone, "Tag 1 geschafft", null); }
+      render(); } },
+  { letter:"Z", title:"Was dahinter steckt", when:"Zusammenfassung",
+    text:"Von der ersten Strecke bis zur Bilanz hat Max die App dreimal kurz geöffnet. Alles andere lief im Hintergrund. Ab hier kannst du die App frei ausprobieren, weitere Strecken anlegen oder die Story neu starten.",
+    tech:"", final:true,
+    enter: async()=>{ setClock("18:06"); lockState=null; closeSheet(); go("home"); } }
+];
+let cur = 0, busy = false;
+function scrollToCmp(){ const el=$("cmp"); if(el) screen.scrollTop = el.offsetTop - 8; }
+async function gotoStep(i, replay){
+  if(busy) return; busy=true;
+  if(replay){
+    S=FRESH(); incidents=[]; matches={}; lastRun=null; checkRes={}; draft=null; reportDraft=null; showAlt=false; closeSheet();
+    logEl.innerHTML=LOG_PLACEHOLDER; delete logEl.dataset.used;
+    FAST=true; for(let k=0;k<i;k++) await STEPS[k].enter(); FAST=false;
+  }
+  cur=i; renderStory();
+  await STEPS[i].enter();
+  busy=false; renderStory();
+}
+function next(){ if(cur<STEPS.length-1) gotoStep(cur+1,false); }
+function prev(){ if(cur>0) gotoStep(cur-1,true); }
+// Wenn der Nutzer im Handy selbst die erwartete Aktion macht, geht die Story weiter.
+function tourHook(action){
+  const st=STEPS[cur]; if(busy || !st || st.expect!==action) return;
+  setTimeout(()=>{ cur++; renderStory(); busy=true; STEPS[cur].enter().then(()=>{busy=false; renderStory();}); }, reduce()?0:1300);
+}
+/* ---------- Datenquellen-Tabelle ---------- */
+$("srcTbl").innerHTML = [
+  `<tr><td><strong>ASTRA Baustellen</strong><br><span class="no">opentransportdata.swiss, DATEX II</span></td><td>Baustellen National- und Kantonsstrassen</td><td class="no">Format nachgebaut, Beispieleinträge</td></tr>`,
+  `<tr><td><strong>Stadt Bern KOER</strong><br><span class="no">ArcGIS REST, GeoJSON, LV95</span></td><td>Kommunale Baustellen</td><td class="no">Format nachgebaut, Beispieleinträge</td></tr>`
+].concat(TRAFFIC_SOURCES.map(src=>`<tr><td><strong>${src.name}</strong><br><span class="no">${src.detail}</span></td><td>${src.kind==="live"?"Verkehr in Echtzeit":src.kind==="statistic"?"Jahreswerte (DTV)":"Beispielwerte"}</td><td class="no">${src.connected?(src.kind==="demo"?"aktiv, keine Messwerte":"aktiv"):"nicht angebunden"}. ${src.reason}</td></tr>`))
+ .concat([`<tr><td><strong>swisstopo swissTLM3D</strong><br><span class="no">Strassen und Wege, OBJEKTART</span></td><td>Strassenklasse für Kapazität</td><td class="no">Klassen-Codes echt, Zuordnung zu Abschnitten von Hand</td></tr>`]).join("");
+
+/* App-Modus: auf schmalen Bildschirmen automatisch, in der installierten PWA immer (Klasse "force") */
+const mq = matchMedia("(max-width:900px)");
+function applyMode(){ if(!document.body.classList.contains("force")) document.body.classList.toggle("appmode", mq.matches); renderStory(); }
+if(mq.addEventListener) mq.addEventListener("change", applyMode);
+if(!document.body.classList.contains("force")) document.body.classList.toggle("appmode", mq.matches);
+gotoStep(0,true);
+})();
+</script>
+<script>
+if("serviceWorker" in navigator){ window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); }); }
+</script>
+</body>
+</html>
