@@ -1,0 +1,27 @@
+# Brumdrumherum – ASTRA-Test Region Bern
+# Start von Hand: Reiter «Actions» → «ASTRA Test Bern» → «Run workflow».
+name: ASTRA Test Bern
+
+on:
+  workflow_dispatch:
+
+jobs:
+  astra-bern:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: ASTRA abrufen und auf Bern filtern
+        env:
+          ASTRA_TOKEN: ${{ secrets.ASTRA_TOKEN }}
+        run: node scripts/astra-bern.mjs
+      - name: Ergebnis speichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-bern
+          path: astra-bern.json
+          if-no-files-found: ignore
