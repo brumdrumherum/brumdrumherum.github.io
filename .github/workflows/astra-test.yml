@@ -1,9 +1,15 @@
-# Brumdrumherum – ASTRA-Test Region Bern
-# Start von Hand: Reiter «Actions» → «ASTRA Test Bern» → «Run workflow».
-name: ASTRA Test Bern
+# Brumdrumherum – ASTRA-Baustellen Region Bern
+# Läuft automatisch: nachts und an Werktagen zu Pendelzeiten alle 15 Minuten.
+# Von Hand: Reiter «Actions» → «ASTRA Baustellen» → «Run workflow».
+# Zeiten in UTC (Schweiz = UTC+1 im Winter, UTC+2 im Sommer).
+name: ASTRA Baustellen
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "15 1 * * *"          # nachts
+    - cron: "*/15 4-7 * * 1-5"    # Morgen-Pendelzeit
+    - cron: "*/15 14-17 * * 1-5"  # Abend-Pendelzeit
 
 jobs:
   astra-bern:
@@ -14,9 +20,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: ASTRA abrufen und auf Bern filtern
+      - name: ASTRA abrufen, auf Bern filtern und an Xano senden
         env:
           ASTRA_TOKEN: ${{ secrets.ASTRA_TOKEN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          XANO_URL: https://x8ki-letl-twmt.n7.xano.io/api:46MELtpt
         run: node scripts/astra-bern.mjs
       - name: Ergebnis speichern
         if: always()
