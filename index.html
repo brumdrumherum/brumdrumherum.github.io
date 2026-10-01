@@ -184,6 +184,18 @@ select,input[type=time],input[type=text]{width:100%;padding:13px 14px;border-rad
 .where svg.i{color:var(--yellow)}
 .hintbox{display:flex;gap:10px;font-size:13px;color:var(--muted);background:var(--s1);border-radius:14px;padding:12px 14px;margin-bottom:6px}
 
+/* Adresssuche und Mapbox-Karte */
+.addr{position:relative}
+.addr .okmark{position:absolute;right:12px;top:12px;color:var(--free)}
+.sugg{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:5;background:var(--s2);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.4)}
+.sugg:empty{display:none}
+.sugg button{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:11px 14px;font-size:14px;color:var(--ink);cursor:pointer}
+.sugg button:first-child{border-top:0}
+.sugg button:hover,.sugg button:focus-visible{background:var(--s1)}
+.sugg .none{padding:11px 14px;font-size:13px;color:var(--muted)}
+.mbmap{width:100%}
+.mbmap .mapboxgl-ctrl-attrib{font-size:10px}
+
 /* Onboarding: die eine Animation */
 .onb{display:flex;flex-direction:column;min-height:100%;padding-top:10px}
 .word{font-size:46px;font-weight:600;line-height:.95;letter-spacing:-.02em;margin:18px 0 0}
@@ -355,6 +367,7 @@ body.appmode .tourbtn{display:flex}
     </section>
   </div>
 </div>
+<script src="config.js"></script>
 <script>
 (function(){
 "use strict";
@@ -606,12 +619,16 @@ const SCORE = {
 // Verkehrsplanung): t = t0 × (1 + 0.15 × (v/c)^4)
 function bprTime(t0, v, c){ return v==null ? t0 : t0*(1+0.15*Math.pow(v/c,4)); }
 
+/* Entscheid Team: kein Live-Verkehrsfluss. Die Routenwahl beruht auf Fahrzeit, Baustellen und Umweg.
+   Die Module für Verkehrsdaten und Kapazität bleiben im Code für eine spätere Erweiterung (z. B. KSVD). */
+const USE_TRAFFIC = false;
 async function evaluateLine(l, hour, opts){
   opts = opts||{};
   const lens=[]; for(let i=0;i<l.pts.length-1;i++) lens.push(haversine(l.pts[i],l.pts[i+1]));
   const total = lens.reduce((a,b)=>a+b,0);
   const segs=[]; let t=0, sources=new Set(), missing=0;
   for(let i=0;i<lens.length;i++){
+    if(!USE_TRAFFIC || !l.vph){ t += l.min*lens[i]/total; segs.push({len:lens[i], vph:null, cap:{vph:null}, u:null, attr:null}); continue; }
     const attr = roadAttributes(l,i);
     const cap = estimateRoadCapacity(attr);
     const tv = await getTrafficVolume({demoVph:l.vph[i], mid:l.pts[i]}, hour);
@@ -622,7 +639,7 @@ async function evaluateLine(l, hour, opts){
     t += bprTime(l.min*lens[i]/total, vph, cap.vph);
     segs.push({len:lens[i], vph, cap, u, attr});
   }
-  const sites = sitesOn(l.pts);
+  const sites = sitesOn(l.pts, l.live);
   t += sites.length*SCORE.constructionDelayMin;
   const known = segs.filter(s=>s.u!=null);
   const util = known.length ? Math.round(known.reduce((a,s)=>a+s.u*s.len,0)/known.reduce((a,s)=>a+s.len,0)) : null;
@@ -648,12 +665,32 @@ async function evaluateRoutes(L, hour, opts){
 }
 
 /* ---------- Baustellen-Abgleich für beliebige Linien ---------- */
-function sitesOn(pts){
-  const dense=densify(pts,20), bb=bbox(pts,0.01), out=[];
-  for(const inc of incidents){
-    if(!inc.aktiv||inc.lat<bb[0]||inc.lat>bb[2]||inc.lon<bb[1]||inc.lon>bb[3]) continue;
-    let best=Infinity; for(const p of dense){const d=haversine(p,[inc.lat,inc.lon]); if(d<best) best=d;}
-    if(best<=THRESHOLD_M) out.push({inc,dist:Math.round(best)});
+// Abstand Strecke ↔ Baustelle. Echte Baustellen (Stadt Bern) sind Flächen: dann zählt der
+// nächste Punkt der Fläche, damit auch lange Baustellen erkannt werden. Sonst der Mittelpunkt.
+function incDist(dense, inc){
+  const targets = inc.pts || [[inc.lat, inc.lon]];
+  let best = Infinity;
+  for(const p of dense){ for(const q of targets){ const d = haversine(p, q); if(d < best) best = d; } }
+  return best;
+}
+function incNearBox(inc, bb){
+  if(inc.bb) return !(inc.bb[2] < bb[0] || inc.bb[0] > bb[2] || inc.bb[3] < bb[1] || inc.bb[1] > bb[3]);
+  return !(inc.lat<bb[0]||inc.lat>bb[2]||inc.lon<bb[1]||inc.lon>bb[3]);
+}
+// Echte Strecken nutzen die Live-Baustellen von Xano (falls geladen), die Story bleibt bei den Beispieldaten.
+function incidentPool(live){ return (live && liveIncidents.length) ? liveIncidents : incidents; }
+// ASTRA wird über Autobahnanschlüsse verortet (Mittelpunkt der Rampen). Das ist ungenauer als die
+// Flächen der Stadt Bern, deshalb gilt dort ein Korridor von 250 m statt 100 m.
+const ASTRA_THRESHOLD_M = 250;
+const thresholdFor = inc => inc.quelle === "astra" ? ASTRA_THRESHOLD_M : THRESHOLD_M;
+// Nachtsperrungen (z.B. 20:00–05:00) betreffen Pendelnde nicht und lösen keine Warnung aus.
+const warns = inc => inc.aktiv && !inc.night_only;
+function sitesOn(pts, live){
+  const dense=densify(pts,20), bb=bbox(pts,0.004), out=[];
+  for(const inc of incidentPool(live)){
+    if(!warns(inc) || !incNearBox(inc, bb)) continue;
+    const best = incDist(dense, inc);
+    if(best<=thresholdFor(inc)) out.push({inc,dist:Math.round(best)});
   }
   return out;
 }
@@ -664,7 +701,7 @@ function ensureData(){
 }
 async function checkRoute(r,hour){
   ensureData();
-  const L=lineFor(r.from,r.to);
+  const L=routeLine(r);
   const res = await evaluateRoutes(L,hour);
   const main = res.candidates[0], rec = res.recommended;
   return {hour, main, candidates:res.candidates, rec, better: rec!==main, saves: main.min-rec.min, alt:rec};
@@ -705,15 +742,15 @@ function isRelevant(inc){
 function match(){
   const t0 = performance.now(); const res={}; let checks=0, boxed=0;
   for(const r of S.routes){
-    const L = lineFor(r.from,r.to); if(!L){res[r.id]=[];continue;}
+    const L = routeLine(r); if(!L){res[r.id]=[];continue;}
     const dense = densify(L.pts,20), bb = bbox(L.pts,0.01), hits=[];
-    for(const inc of incidents){
-      if(!inc.aktiv) continue;
+    for(const inc of incidentPool(L.live)){
+      if(!warns(inc)) continue;
       checks++;
-      if(inc.lat<bb[0]||inc.lat>bb[2]||inc.lon<bb[1]||inc.lon>bb[3]) continue;
+      if(!incNearBox(inc, bb)) continue;
       boxed++;
-      let best=Infinity; for(const p of dense){ const d=haversine(p,[inc.lat,inc.lon]); if(d<best) best=d; }
-      if(best<=THRESHOLD_M) hits.push({inc, dist:Math.round(best)});
+      const best = incDist(dense, inc);
+      if(best<=thresholdFor(inc)) hits.push({inc, dist:Math.round(best)});
       else res["_near_"+r.id]=(res["_near_"+r.id]||[]).concat([{inc,dist:Math.round(best)}]);
     }
     res[r.id]=hits;
@@ -744,6 +781,224 @@ const wait = ms => new Promise(r=>setTimeout(r, (FAST||reduce())?0:ms));
 const LOG_PLACEHOLDER = `<span class="dim">Hier erscheint, was im Backend passiert, sobald die Story dort ankommt.</span>`;
 function log(html){ setTimeout(()=>{ const ml=document.querySelector(".story .log.mini"); if(ml){ ml.innerHTML=logEl.innerHTML; ml.scrollTop=ml.scrollHeight; } },0); if(!logEl.dataset.used){ logEl.innerHTML=""; logEl.dataset.used="1"; } logEl.innerHTML += html+"\n"; logEl.scrollTop = logEl.scrollHeight; }
 function setClock(t){ $("clock").textContent = t; }
+
+/* ======================================================================
+   MAPBOX: echte Karte, Adresssuche und Routing
+   ----------------------------------------------------------------------
+   Mapbox-Token: in der Datei config.js eintragen (beginnt mit pk.)            */
+// Der Token steht in der Datei config.js (wird bei Updates nicht überschrieben).
+const MAPBOX_TOKEN = (window.BRUM_CONFIG && window.BRUM_CONFIG.MAPBOX_TOKEN) || "HIER_DEN_MAPBOX_TOKEN_EINFUEGEN";
+/* Ohne Token läuft die App im Demo-Modus mit
+   der gezeichneten Skizze und vier festen Strecken.
+   Hinweis: Dieser Token ist in der App sichtbar. Das ist bei Karten
+   üblich. Ohne hinterlegte Kreditkarte kann Mapbox nichts verrechnen,
+   im schlimmsten Fall ist das Gratiskontingent aufgebraucht.
+   ====================================================================== */
+const MB_ON = /^pk\./.test(MAPBOX_TOKEN);
+const MB_VERSION = "v3.3.0";
+let mbReady = false, mbMaps = [], mbPending = [], mbSeq = 0, mbFlushQueued = false;
+
+function loadMapbox(){
+  if(!MB_ON) return;
+  const css = document.createElement("link");
+  css.rel = "stylesheet"; css.href = `https://api.mapbox.com/mapbox-gl-js/${MB_VERSION}/mapbox-gl.css`;
+  document.head.appendChild(css);
+  const s = document.createElement("script");
+  s.src = `https://api.mapbox.com/mapbox-gl-js/${MB_VERSION}/mapbox-gl.js`;
+  s.onload = () => { try{ mapboxgl.accessToken = MAPBOX_TOKEN; mbReady = true; render(); }catch(e){ mbReady = false; } };
+  s.onerror = () => { mbReady = false; };
+  document.head.appendChild(s);
+}
+
+// Karte: echte Mapbox-Karte, wenn verfügbar und gewünscht (opts.real), sonst die Skizze.
+function mapBlock(highlight, hits, opts){
+  opts = opts || {};
+  if(!(MB_ON && mbReady && opts.real)) return mapSVG(highlight, hits, opts);
+  const id = "mb" + (++mbSeq);
+  mbPending.push({id, highlight, hits: hits || [], opts});
+  if(!mbFlushQueued){ mbFlushQueued = true; setTimeout(flushMaps, 0); }
+  return `<div id="${id}" class="mbmap" style="height:${opts.h || 240}px"></div>`;
+}
+function flushMaps(){
+  mbFlushQueued = false;
+  mbMaps = mbMaps.filter(m => { if(!document.body.contains(m.getContainer())){ try{ m.remove(); }catch(e){} return false; } return true; });
+  const list = mbPending; mbPending = [];
+  list.forEach(spec => {
+    const el = document.getElementById(spec.id); if(!el) return;
+    const ll = p => [p[1], p[0]];
+    const pts = (spec.highlight || []).map(ll), alt = (spec.opts.alt || []).map(ll);
+    const hitPts = spec.hits.map(x => ({type:"Feature", properties:{crowd: x.inc.quelle === "crowd"}, geometry:{type:"Point", coordinates:[x.inc.lon, x.inc.lat]}}));
+    const all = pts.concat(alt, hitPts.map(h => h.geometry.coordinates));
+    let m;
+    try{
+      m = new mapboxgl.Map({container: el, style: "mapbox://styles/mapbox/dark-v11", center: all[0] || [7.44, 46.95], zoom: 12, attributionControl: true});
+    }catch(e){ el.outerHTML = mapSVG(spec.highlight, spec.hits, spec.opts); return; }
+    mbMaps.push(m);
+    m.on("load", () => {
+      const line = coords => ({type:"Feature", geometry:{type:"LineString", coordinates: coords}});
+      if(pts.length){
+        m.addSource("route", {type:"geojson", data: line(pts)});
+        m.addLayer({id:"route-case", type:"line", source:"route", layout:{"line-cap":"round","line-join":"round"}, paint:{"line-color":"#0F1417","line-width":9}});
+        m.addLayer({id:"route", type:"line", source:"route", layout:{"line-cap":"round","line-join":"round"}, paint:{"line-color":"#EEF2F0","line-width":5}});
+        m.addSource("ends", {type:"geojson", data:{type:"FeatureCollection", features:[
+          {type:"Feature", properties:{end:false}, geometry:{type:"Point", coordinates: pts[0]}},
+          {type:"Feature", properties:{end:true},  geometry:{type:"Point", coordinates: pts[pts.length-1]}}]}});
+        m.addLayer({id:"ends", type:"circle", source:"ends", paint:{"circle-radius":6, "circle-color":["case",["get","end"],"#EEF2F0","#0F1417"], "circle-stroke-color":"#EEF2F0", "circle-stroke-width":2.5}});
+      }
+      if(alt.length){
+        m.addSource("alt", {type:"geojson", data: line(alt)});
+        m.addLayer({id:"alt", type:"line", source:"alt", layout:{"line-cap":"round","line-join":"round"}, paint:{"line-color":"#F7C948","line-width":5,"line-dasharray":[1.6,1.3]}});
+      }
+      if(hitPts.length){
+        m.addSource("hits", {type:"geojson", data:{type:"FeatureCollection", features: hitPts}});
+        m.addLayer({id:"hits", type:"circle", source:"hits", paint:{"circle-radius":9, "circle-color":["case",["get","crowd"],"#B39DDB","#F7C948"], "circle-stroke-color":"#0F1417", "circle-stroke-width":2}});
+      }
+      if(all.length > 1){
+        const b = new mapboxgl.LngLatBounds(); all.forEach(c => b.extend(c));
+        m.fitBounds(b, {padding: 36, duration: 0, maxZoom: 15});
+      }
+    });
+  });
+}
+
+/* --- Adresssuche und Routing (Mapbox Geocoding v6, Directions v5) --- */
+async function geocode(q){
+  const u = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}&country=ch&language=de&limit=5&proximity=7.44,46.95&access_token=${MAPBOX_TOKEN}`;
+  const r = await fetch(u); if(!r.ok) throw new Error("Geocoding " + r.status);
+  const j = await r.json();
+  return (j.features || []).map(f => ({
+    label: (f.properties && (f.properties.full_address || [f.properties.name, f.properties.place_formatted].filter(Boolean).join(", "))) || "Unbekannt",
+    lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1]
+  }));
+}
+async function directions(a, b){
+  const u = `https://api.mapbox.com/directions/v5/mapbox/driving/${a.lon},${a.lat};${b.lon},${b.lat}?alternatives=true&geometries=geojson&overview=full&language=de&access_token=${MAPBOX_TOKEN}`;
+  const r = await fetch(u); if(!r.ok) throw new Error("Directions " + r.status);
+  const j = await r.json();
+  if(!j.routes || !j.routes.length) throw new Error("Keine Route gefunden");
+  return j.routes.map((rt, k) => ({
+    via: (rt.legs && rt.legs[0] && rt.legs[0].summary) || ("Route " + (k + 1)),
+    min: Math.round(rt.duration / 60), km: rt.distance / 1000,
+    pts: rt.geometry.coordinates.map(c => [c[1], c[0]])
+  }));
+}
+
+/* ======================================================================
+   LIVE-BAUSTELLEN VON XANO (Stadt Bern, echte Daten)
+   Öffentliche, nur lesende Schnittstelle. Die Adresse ist nicht geheim.
+   ====================================================================== */
+const API_BASE = "https://x8ki-letl-twmt.n7.xano.io/api:XbHUDZ6E";
+let liveIncidents = [], liveStatus = "lädt";
+function ringOf(g){
+  if(!g || !g.coordinates) return null;
+  if(g.type === "Polygon") return g.coordinates[0];
+  if(g.type === "MultiPolygon") return [].concat(...g.coordinates.map(poly => poly[0]));
+  if(g.type === "LineString") return g.coordinates;          // ASTRA: Strecke zwischen zwei Anschlüssen
+  if(g.type === "Point") return [g.coordinates];              // ASTRA: einzelner Anschluss
+  return null;
+}
+function isActiveNow(start, end){
+  const now = new Date(), horizon = new Date(now.getTime() + 7*86400000);
+  const s = start ? new Date(start + "T00:00:00") : null, e = end ? new Date(end + "T23:59:59") : null;
+  return (!s || s <= horizon) && (!e || e >= now);
+}
+async function loadLiveIncidents(){
+  try{
+    const r = await fetch(API_BASE + "/incidents");
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const list = await r.json();
+    liveIncidents = list.map(x => {
+      const ring = ringOf(x.geometry);
+      const pts = ring ? densify(ring.map(c => [c[1], c[0]]), 20) : null;
+      return {id: "KOER-" + x.id, quelle: x.source, titel: x.title, start: x.start_date, ende: x.end_date,
+        lat: x.lat, lon: x.lon, pts, bb: pts ? bbox(pts, 0) : null, live: true, aktiv: isActiveNow(x.start_date, x.end_date),
+        night_only: !!x.night_only, daily_from: x.daily_from || null, daily_to: x.daily_to || null};
+    });
+    liveStatus = "ok";
+    const nb = liveIncidents.filter(i=>i.quelle==="stadt_bern").length, na = liveIncidents.filter(i=>i.quelle==="astra").length;
+    log(`<span class="ok">Live: ${nb} Baustellen der Stadt Bern und ${na} ASTRA-Meldungen von Xano geladen (${liveIncidents.filter(i=>i.aktiv && !i.night_only).length} tagsüber relevant, ${liveIncidents.filter(i=>i.night_only).length} nur nachts)</span>`);
+    if(lastRun) matches = match().res;
+    render(); renderSrcTbl();
+  }catch(e){
+    liveStatus = "fehler";
+    log(`<span class="dim">Live-Baustellen nicht erreichbar (${esc(String(e.message||e))}). Die App nutzt die Beispieldaten.</span>`);
+    renderSrcTbl();
+  }
+}
+
+/* --- Strecken: echte (Mapbox) und Demo-Strecken einheitlich behandeln --- */
+function routeLine(r){
+  if(r.kind === "real"){ const alts = (r.alts || []).map(a => Object.assign({live:true}, a));
+    return {via: r.via, min: r.min, pts: r.geom, innerorts: true, live: true, alts, alt: alts[0]}; }
+  return lineFor(r.from, r.to);
+}
+const shortLabel = s => String(s || "").split(",")[0];
+function fromTo(r){ return r.kind === "real" ? `${esc(shortLabel(r.fromL))} → ${esc(shortLabel(r.toL))}` : `${PLACES[r.from]} → ${PLACES[r.to]}`; }
+
+/* --- Neue Strecke mit echter Adresssuche --- */
+let rd = null, geoTimer = null;
+function renderNewReal(){
+  rd = rd || {name:"Arbeitsweg", fromQ:"", toQ:"", from:null, to:null, time:"07:40", days:[1,2,3,4,5], res:null, err:"", busy:false};
+  appbar.innerHTML = `${S.routes.length?`<button class="back" id="back">${icon("back")}Abbrechen</button>`:""}<h2 class="h1">Neue Strecke</h2><p class="lead" style="margin:0">Adressen eingeben, die Route wird berechnet</p>`;
+  if($("back")) $("back").onclick = () => { rd = null; go("home"); };
+  const field = (k, label, q, ok) => `<label class="f" for="a_${k}">${label}</label>
+    <div class="addr"><input id="a_${k}" type="text" autocomplete="off" placeholder="Strasse und Ort" value="${esc(q)}">${ok?`<span class="okmark">${icon("check")}</span>`:""}<div class="sugg" id="s_${k}" role="listbox"></div></div>`;
+  const r0 = rd.res && rd.res[0];
+  screen.innerHTML = `
+    <label class="f" for="nName">Name</label><input id="nName" type="text" value="${esc(rd.name)}">
+    ${field("from","Start",rd.fromQ,!!rd.from)}
+    ${field("to","Ziel",rd.toQ,!!rd.to)}
+    <div style="height:14px"></div>
+    <button class="btn ${r0?"ghost":""}" id="calc" ${rd.from&&rd.to&&!rd.busy?"":"disabled"}>${icon("route")}${rd.busy?"Route wird berechnet …":r0?"Neu berechnen":"Route berechnen"}</button>
+    <div class="err" id="nErr" role="alert">${esc(rd.err||"")}</div>
+    ${r0?`<div class="mapbox">${mapBlock(r0.pts, [], {h:200, real:true})}</div>
+      <p class="note" style="margin-top:-4px">Via ${esc(r0.via)}, ${r0.min} Min., ${r0.km.toFixed(1)} km${rd.res.length>1?`. ${rd.res.length-1} Alternative${rd.res.length>2?"n":""} gefunden.`:"."}</p>
+      <label class="f" for="nTime">Übliche Abfahrt</label><input type="time" id="nTime" value="${rd.time}">
+      <label class="f">Tage</label><div class="days">${[1,2,3,4,5,6,0].map(d=>`<button type="button" data-d="${d}" aria-pressed="${rd.days.includes(d)}">${DAYN[d]}</button>`).join("")}</div>
+      <div style="height:18px"></div>
+      <button class="btn y" id="nSave">Strecke überwachen</button>`:""}
+    <p class="note">Adresssuche und Route von Mapbox. Gespeichert wird nur die Linie der Strecke.</p>`;
+  $("nName").oninput = e => { rd.name = e.target.value; };
+  ["from","to"].forEach(k => {
+    const inp = $("a_"+k), box = $("s_"+k);
+    inp.oninput = () => {
+      rd[k+"Q"] = inp.value; rd[k] = null; rd.res = null;
+      $("calc").disabled = true;
+      clearTimeout(geoTimer);
+      if(inp.value.trim().length < 3){ box.innerHTML = ""; return; }
+      geoTimer = setTimeout(async () => {
+        try{
+          const list = await geocode(inp.value.trim());
+          box.innerHTML = list.length ? list.map((s,i)=>`<button type="button" role="option" data-i="${i}">${esc(s.label)}</button>`).join("") : `<div class="none">Keine Adresse gefunden</div>`;
+          box.querySelectorAll("button").forEach(b => b.onclick = () => { const s = list[+b.dataset.i]; rd[k] = s; rd[k+"Q"] = s.label; rd.err = ""; renderNewReal(); });
+        }catch(e){ box.innerHTML = `<div class="none">Adresssuche nicht erreichbar. Ist der Mapbox-Token eingetragen?</div>`; }
+      }, 300);
+    };
+  });
+  $("calc").onclick = async () => {
+    rd.busy = true; rd.err = ""; renderNewReal();
+    try{ rd.res = await directions(rd.from, rd.to); }
+    catch(e){ rd.res = null; rd.err = "Route konnte nicht berechnet werden. Prüfe die Adressen oder die Internetverbindung."; }
+    rd.busy = false; renderNewReal();
+  };
+  if(r0){
+    $("nTime").onchange = e => { rd.time = e.target.value; };
+    screen.querySelectorAll(".days button").forEach(b => b.onclick = () => { const d = +b.dataset.d; rd.days = rd.days.includes(d) ? rd.days.filter(x=>x!==d) : rd.days.concat(d); renderNewReal(); });
+    $("nSave").onclick = () => {
+      if(!rd.days.length){ rd.err = "Wähle mindestens einen Tag."; renderNewReal(); return; }
+      const [main, ...alts] = rd.res;
+      const r = {id:"r"+(S.nextId++), kind:"real", name: rd.name.trim() || shortLabel(rd.fromQ)+" → "+shortLabel(rd.toQ),
+        fromL: rd.from.label, toL: rd.to.label, from:{lat:rd.from.lat, lon:rd.from.lon}, to:{lat:rd.to.lat, lon:rd.to.lon},
+        time: rd.time || "07:40", days: rd.days.slice(), on:true, geom: main.pts, via: main.via, min: main.min, km: main.km, alts};
+      S.routes.push(r); rd = null;
+      ensureData(); matches = match().res;
+      const first = S.routes.length === 1;
+      log(`<span class="ok">App: Neue Strecke «${esc(r.name)}» mit Mapbox berechnet (${r.min} Min., ${alts.length} Alternative(n)) und gespeichert</span>`);
+      go("detail", r.id);
+      if(first) addXP(REWARD.firstRoute, "Erste Strecke gespeichert", "first");
+    };
+  }
+}
 
 /* ======================================================================
    ICONS (eigene Linien-Icons, keine Emojis)
@@ -879,12 +1134,13 @@ function renderOnboarding(){
       <button class="btn y" id="start">Los geht's</button>
       <p class="note" style="text-align:center">Web-App ohne App Store. Push-Erlaubnis folgt im nächsten Schritt.</p>
     </div></div>`;
-  $("start").onclick = ()=>{ S.onboarded=true; startDraft(); go("new"); tourHook("start"); };
+  $("start").onclick = ()=>{ S.onboarded=true; startDraft(); go("new","demo"); tourHook("start"); };
 }
 
 /* --- Neue Strecke --- */
 function startDraft(){ draft = draft || {from:"koeniz", to:"bern_hb", time:"07:40", days:[1,2,3,4,5], name:"Arbeitsweg"}; }
 function renderNew(){
+  if(MB_ON && view.param!=="demo") return renderNewReal();
   startDraft();
   appbar.innerHTML = `${S.routes.length?`<button class="back" id="back">${icon("back")}Abbrechen</button>`:""}<h2 class="h1">Neue Strecke</h2><p class="lead" style="margin:0">Wohin fährst du regelmässig?</p>`;
   if($("back")) $("back").onclick=()=>{draft=null;go("home");};
@@ -931,10 +1187,10 @@ function renderHome(){
     {ic:"flame",  t:"5 Arbeitstage clever pendeln", done:S.stats.streak>=5, rw:100, p:S.stats.streak, of:5}
   ];
   const cards = S.routes.map(r=>{
-    const L=lineFor(r.from,r.to), h=matches[r.id]||[], ch=chosenAlt(r,L);
+    const L=routeLine(r), h=matches[r.id]||[], ch=chosenAlt(r,L);
     const st = !lastRun ? `<span class="state">Wird überwacht</span>` : h.length ? `<span class="state warn">${h.length} Baustelle${h.length>1?"n":""}</span>` : `<span class="state ok">Frei</span>`;
     return `<button class="route" data-id="${r.id}">
-      <div class="top"><div><h3>${esc(r.name)}</h3><div class="ft">${PLACES[r.from]} → ${PLACES[r.to]}</div></div>${st}</div>
+      <div class="top"><div><h3>${esc(r.name)}</h3><div class="ft">${fromTo(r)}</div></div>${st}</div>
       <div class="lane ${lastRun&&h.length?"warn":""}" aria-hidden="true"></div>
       <div class="facts"><span>${icon("clock")}${r.time}</span><span>${icon("cal")}${daysText(r.days)}</span><span>${L.min} Min.</span></div>
       ${h.length?`<div class="msg">${esc(h[0].inc.titel)}${h.length>1?` und ${h.length-1} weitere`:""}</div>`:""}
@@ -988,10 +1244,11 @@ function mapSVG(highlight, hitList, opts){
 }
 function siteRow(x){
   const i=x.inc, q=i.quelle;
-  const when = i.start ? (new Date(i.start+"T00:00:00")>TODAY ? `ab ${fmtD(i.start)}` : `bis ${fmtD(i.ende)}`) : "heute gemeldet";
+  const ref = i.live ? new Date() : TODAY;
+  const when = i.start ? (new Date(i.start+"T00:00:00")>ref ? `ab ${fmtD(i.start)}` : (i.ende ? `bis ${fmtD(i.ende)}` : "laufend")) : "heute gemeldet";
   return `<div class="site ${q==="crowd"?"crowd":""}"><span class="ic">${icon("cone")}</span><div>
     <div class="src ${srcCls[q]}">${srcLabel[q]}${q==="crowd"?", nicht verifiziert":""}</div>
-    <h4>${esc(i.titel)}</h4><p>${when}, ${x.dist} m von deiner Strecke</p></div></div>`;
+    <h4>${esc(i.titel)}</h4><p>${when}${i.night_only?`, nur nachts ${i.daily_from||""}–${i.daily_to||""}`:""}, ${x.dist} m von deiner Strecke</p></div></div>`;
 }
 function crowdHits(pts){
   const dense=densify(pts,20);
@@ -1001,19 +1258,15 @@ function crowdHits(pts){
 /* --- Streckendetail mit Routenvergleich --- */
 function renderDetail(){
   const r=S.routes.find(x=>x.id===view.param); if(!r){go("home");return;}
-  const L=lineFor(r.from,r.to), ch=chosenAlt(r,L), cr=checkRes[r.id];
+  const L=routeLine(r), ch=chosenAlt(r,L), cr=checkRes[r.id];
   const hits=(matches[r.id]||[]).concat(crowdHits(L.pts));
-  appbar.innerHTML = `<button class="back" id="back">${icon("back")}Strecken</button><h2 class="h1" style="margin-top:0">${esc(r.name)}</h2><p class="lead" style="margin:0">${PLACES[r.from]} → ${PLACES[r.to]}, via ${ch?esc(ch.via)+" (heute)":esc(L.via)}</p>`;
+  appbar.innerHTML = `<button class="back" id="back">${icon("back")}Strecken</button><h2 class="h1" style="margin-top:0">${esc(r.name)}</h2><p class="lead" style="margin:0">${fromTo(r)}, via ${ch?esc(ch.via)+" (heute)":esc(L.via)}</p>`;
   $("back").onclick=()=>go("home");
   const shown = cr ? (ch ? cr.candidates.find(c=>c.via===ch.via) : (showAlt && cr.better ? cr.rec : null)) : null;
-  screen.innerHTML = `<div class="mapbox" style="margin-top:8px">${mapSVG(L.pts, hits.concat(shown?shown.sites:[]), cr?{loads:cr.main.loads, alt:shown?shown.pts:null}:{})}
-      ${cr?`<div class="legend">${UTIL_CLASSES.map(c=>`<span><i style="background:${c.color}"></i>${c.label}</span>`).join("")}${shown?`<span><i style="background:var(--yellow)"></i>Umfahrung</span>`:""}</div>`:""}</div>
+  screen.innerHTML = `<div class="mapbox" style="margin-top:8px">${mapBlock(L.pts, hits.concat(shown?shown.sites:[]), {alt:shown?shown.pts:null, real:r.kind==="real"})}
+      <div class="legend"><span><i style="background:var(--ink)"></i>Deine Strecke</span><span><i style="background:var(--yellow);border-radius:50%;width:8px;height:8px"></i>Baustelle</span>${shown?`<span><i style="background:var(--yellow)"></i>Umfahrung</span>`:""}</div></div>
     ${!lastRun ? `<div class="hintbox">${icon("info")}Das Backend gleicht die Baustellen regelmässig ab.</div>` : hits.length ? `<div class="label" style="margin-top:6px"><span>Auf deiner Strecke</span><span>${hits.length}</span></div><div class="sites">${hits.map(siteRow).join("")}</div>` : `<div class="okbox">Keine Baustelle auf dieser Strecke.</div>`}
     <div class="label" id="cmp"><span>Routenvergleich</span><span>${cr?cr.candidates.length+" Routen":""}</span></div>
-    <div class="seg" role="group" aria-label="Zeitpunkt">
-      <button data-m="now" aria-pressed="${checkMode==="now"}">Jetzt, ${TODAY.toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit"})}</button>
-      <button data-m="dep" aria-pressed="${checkMode==="dep"}">Abfahrt, ${r.time}</button>
-    </div>
     ${cr ? compareCards(r,cr,L,ch) : ""}
     <button class="btn ${cr?"ghost":""}" id="checkBtn">${icon("radar")}${cr?"Erneut prüfen":"Route jetzt prüfen"}</button>`;
   screen.querySelectorAll(".seg button").forEach(b=>b.onclick=async()=>{ checkMode=b.dataset.m; if(checkRes[r.id]){ await compareRoutes(r, modeHour(r), false); } render(); });
@@ -1030,7 +1283,7 @@ async function doCheck(r){
   tourHook("check");
 }
 function takeAlt(r, idx){
-  const L=lineFor(r.from,r.to), ch=chosenAlt(r,L);
+  const L=routeLine(r), ch=chosenAlt(r,L);
   if(ch && (r.altIdx||0)===idx){ r.altDay=null; render(); return; }
   r.altDay=todayKey(); r.altIdx=idx;
   const cr=checkRes[r.id], c=cr&&cr.candidates.find(x=>x.altIdx===idx);
@@ -1041,9 +1294,9 @@ function takeAlt(r, idx){
   tourHook("takeAlt");
 }
 function compareCards(r,cr,L,ch){
-  const demo = cr.candidates.some(c=>c.dataKinds.includes("demo"));
+  const demo = !(r.kind==="real" && liveIncidents.length);
   const sorted = cr.candidates.slice().sort((a,b)=>(b===cr.rec)-(a===cr.rec));
-  return `${demo?`<div class="demo">${icon("info")}<span><b>Demo-Daten.</b> Verkehrsstärken sind Beispielwerte, die Kapazität ist aus der Strassenklasse geschätzt.</span></div>`:""}
+  return `${demo?`<div class="demo">${icon("info")}<span><b>Beispieldaten.</b> Die Baustellen sind nachgebaute Einträge, bis das Backend die echten Daten von ASTRA und Stadt Bern holt.</span></div>`:`<div class="demo">${icon("check")}<span><b style="color:var(--free)">Echte Daten.</b> Baustellen der Stadt Bern, live aus Xano. ASTRA folgt.</span></div>`}
     ${sorted.map(c=>candCard(c,cr,ch)).join("")}`;
 }
 function candCard(c,cr,ch){
@@ -1056,12 +1309,8 @@ function candCard(c,cr,ch){
     <div class="hd"><h4>${name}</h4>${chosen?`<span class="chip on">Heute gewählt</span>`:rec?`<span class="chip rec">Empfohlen${c.key!=="main"?`, +${REWARD.reroute} BP`:""}</span>`:""}</div>
     <div class="via">${esc(c.via)}</div>
     <div class="big"><b class="tnum">${c.min}<small>Min.</small></b><span>${extra}</span><span>${km}</span></div>
-    <div class="meter">
-      <div class="track" role="img" aria-label="Auslastung ${c.util} Prozent"><i style="width:${Math.min(100,c.util||0)}%;background:${cls.color}"></i></div>
-      <span class="l">Auslastung <b class="tnum">${c.util==null?"–":c.util+" %"}</b></span><span class="r" style="color:${cls.color}">${cls.label}</span>
-    </div>
-    <div class="foot">${c.sites.length?`${c.sites.length} Baustelle${c.sites.length>1?"n":""}`:"Keine Baustelle"}${c.peak?`, Engpass ${c.peak.u} %`:""}. Kapazität geschätzt${c.dataKinds.includes("demo")?`, <span class="tag">Verkehr Demo</span>`:""}.</div>
-    <details><summary>So bewertet</summary>Score ${sc.total.toFixed(1)} = Fahrzeit ${sc.travelTime} + Belastung ${sc.congestionPenalty.toFixed(1)} + Baustellen ${sc.constructionPenalty} + Umweg ${sc.lengthPenalty.toFixed(1)}. Tiefer ist besser. Engpass: ${c.peak?Math.round(c.peak.vph)+" von "+c.peak.cap.vph+" Fz/h":"–"}.</details>
+    <div class="foot">${c.sites.length?`${c.sites.length} Baustelle${c.sites.length>1?"n":""} auf dieser Route`:"Keine Baustelle auf dieser Route"}.</div>
+    <details><summary>So bewertet</summary>Score ${sc.total.toFixed(1)} = Fahrzeit ${sc.travelTime} + Baustellen ${sc.constructionPenalty} + Umweg ${sc.lengthPenalty.toFixed(1)}. Tiefer ist besser. Jede Baustelle zählt 3 Minuten Fahrzeit und 5 Punkte Malus.</details>
     ${c.key!=="main" && (rec||chosen) ? `<div class="row">
       <button class="btn ${chosen?"ghost":"y"}" data-take="${c.altIdx}">${chosen?"Zurück zur üblichen Route":"Übernehmen"}</button>
       ${chosen?"":`<button class="btn ghost" id="showAlt" style="width:auto;padding:12px 16px">${showAlt?"Karte aus":"Karte"}</button>`}</div>`:""}
@@ -1071,15 +1320,17 @@ function candCard(c,cr,ch){
 /* --- Karte aller Baustellen --- */
 function renderMapScreen(){
   appbar.innerHTML = meHeader();
-  const act=incidents.filter(i=>i.aktiv);
+  const act=incidentPool(true).filter(i=>i.aktiv);
   screen.innerHTML = `<h2 class="h1">Baustellen</h2><p class="lead">Rund um Bern, aus allen Quellen</p>
-    <div class="mapbox">${mapSVG(null, act.map(i=>({inc:i})).concat(S.reports.map(p=>({inc:p}))), {h:320})}</div>
+    <div class="mapbox">${mapBlock(null, act.map(i=>({inc:i})).concat(S.reports.map(p=>({inc:p}))), {h:320, real:true})}</div>
     <div class="list">
-      <div class="li"><span class="ic src astra">${icon("cone")}</span><span class="t">ASTRA<small>National- und Kantonsstrassen</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="astra").length}</span></div>
+      <div class="li"><span class="ic src astra">${icon("cone")}</span><span class="t">ASTRA<small>Autobahnen und Zubringer${act.some(i=>i.quelle==="astra"&&i.night_only)?`, davon ${act.filter(i=>i.quelle==="astra"&&i.night_only).length} nur nachts`:""}</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="astra").length}</span></div>
       <div class="li"><span class="ic src bern">${icon("cone")}</span><span class="t">Stadt Bern<small>Gemeindestrassen, KOER</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="stadt_bern").length}</span></div>
       <div class="li"><span class="ic src crowd">${icon("cone")}</span><span class="t">Community<small>nicht verifiziert</small></span><span class="rw tnum">${S.reports.length}</span></div>
     </div>
-    ${lastRun?"":`<p class="note">Noch keine Daten geladen.</p>`}`;
+    ${act.filter(i=>i.quelle==="astra").length ? `<div class="label"><span>ASTRA-Meldungen</span><span>${act.filter(i=>i.quelle==="astra").length}</span></div>
+      <div class="sites">${act.filter(i=>i.quelle==="astra").map(i=>`<div class="site"><span class="ic">${icon("cone")}</span><div><div class="src astra">ASTRA${i.night_only?`, nur nachts ${i.daily_from||""}–${i.daily_to||""}`:""}</div><h4>${esc(i.titel)}</h4><p>${i.start?fmtD(i.start):"?"} bis ${i.ende?fmtD(i.ende):"offen"}${i.night_only?". Löst keine Morgen-Warnung aus.":""}</p></div></div>`).join("")}</div>` : ""}
+    ${lastRun || liveIncidents.length ?"":`<p class="note">Noch keine Daten geladen.</p>`}`;
 }
 
 /* --- Melden --- */
@@ -1121,7 +1372,7 @@ function renderProfile(){
       <div class="stat"><b class="tnum">${S.stats.reports}</b><span>Meldungen</span></div>
       <div class="stat"><b class="tnum">${S.stats.streak}</b><span>Tage am Stück</span></div>
     </div>
-    ${S.stats.reroutes && main ? `<div class="impact">Heute ein Auto weniger auf der ${esc(main.via)} zur Spitzenzeit. <span>Dort lag die Auslastung bei ${main.util} % (Demo-Daten).</span></div>`:""}
+    ${S.stats.reroutes && main ? `<div class="impact">Heute ein Auto weniger auf der ${esc(main.via)} zur Spitzenzeit. <span>Dort bremsen ${main.sites.length} Baustelle${main.sites.length===1?"":"n"} den Verkehr.</span></div>`:""}
     <div class="label"><span>Abzeichen</span><span>${S.badges.length} von ${Object.keys(BADGES).length}</span></div>
     <div class="badges">${Object.entries(BADGES).map(([k,b])=>`<div class="badge ${S.badges.includes(k)?"":"locked"}"><div class="ic">${icon(b.ic)}</div><b>${b.name}</b><small>${S.badges.includes(k)?"Erhalten":b.how}</small></div>`).join("")}</div>
     <button class="btn ghost tourbtn" id="showTour" style="margin-top:18px">${icon("route")}Story von A bis Z zeigen</button>
@@ -1167,8 +1418,8 @@ function renderStory(){
 function finalSummary(){
   return `<div class="summary">
     <div><h3>MODI-Kette</h3><ul><li>Anbieter 1: ASTRA, DATEX II</li><li>Anbieter 2: Stadt Bern KOER, GeoJSON in LV95</li><li>Nutzer: Brumdrumherum</li><li>Endnutzer: Max</li></ul></div>
-    <div><h3>Echt im Prototyp</h3><ul><li>Datenformate beider Anbieter</li><li>LV95-Umrechnung, 100-m-Abgleich</li><li>swissTLM3D-Strassenklassen</li><li>BPR-Fahrzeitformel</li></ul></div>
-    <div><h3>Demo oder geschätzt</h3><ul><li>Baustellen: nachgebaute Einträge</li><li>Verkehrsstärken: Demo-Werte</li><li>Kapazität: geschätzt</li><li>Push: simuliert</li></ul></div>
+    <div><h3>Echt im Prototyp</h3><ul><li>Datenformate beider Anbieter</li><li>LV95-Umrechnung, 100-m-Abgleich</li><li>Mapbox-Karte und Routing (mit Token)</li></ul></div>
+    <div><h3>Demo oder geschätzt</h3><ul><li>Baustellen: nachgebaute Einträge</li><li>Push: simuliert</li><li>Echte Karte und Routen nur mit Mapbox-Token</li></ul></div>
     <div><h3>Nächste Schritte</h3><ul><li>ASTRA-Token, Echtdaten im Notebook</li><li>KSVD-Werte für die Strecken</li><li>User-Tests: motivieren die Punkte?</li></ul></div>
   </div>`;
 }
@@ -1200,12 +1451,11 @@ async function runPipeline(){
 async function compareRoutes(r, hour, verbose){
   if(verbose){
     log(`\n<span class="dim">Routenvergleich «${esc(r.name)}» für ${hour===hourOf(r.time)?"Abfahrt "+r.time:"jetzt"}</span>`);
-    for(const src of TRAFFIC_SOURCES){ await wait(180); log(src.connected ? `<span class="warn">  ${src.name}: aktiv${src.kind==="demo"?" (keine Messwerte)":""}</span>` : `<span class="dim">  ${src.name}: nicht angebunden</span>`); }
-    log(`<span class="dim">  Kapazität: estimateRoadCapacity() aus swissTLM3D-Strassenklasse (Schätzung)</span>`);
+    await wait(200); log(`<span class="dim">  Bewertung: Fahrzeit + Baustellen + Umweg (kein Live-Verkehr)</span>`);
   }
   const res = await checkRoute(r, hour); checkRes[r.id] = res;
   if(verbose){
-    res.candidates.forEach(c=>log(`  ${c.key==="main"?"Übliche Route":"Alternative"} via ${esc(c.via)}: ${c.min} Min., Auslastung ${c.util} %, ${c.sites.length} Baustelle(n), Score ${c.score.total.toFixed(1)}`));
+    res.candidates.forEach(c=>log(`  ${c.key==="main"?"Übliche Route":"Alternative"} via ${esc(c.via)}: ${c.min} Min., ${c.km.toFixed(1)} km, ${c.sites.length} Baustelle(n), Score ${c.score.total.toFixed(1)}`));
     log(res.better ? `<span class="warn">  → Empfehlung: via ${esc(res.rec.via)}</span>` : `<span class="ok">  → Übliche Route bleibt die beste Wahl</span>`);
   }
   return res;
@@ -1227,7 +1477,7 @@ const STEPS = [
     text:"Max gibt Start und Ziel ein und stellt seine übliche Abfahrt ein: Montag bis Freitag um 07:40. Mehr muss er nicht tun.",
     tech:"Die Route wird als Linie in der Xano-Tabelle <b>routes</b> gespeichert (WGS84). Kein GPS-Tracking, keine Bewegungsdaten. Im Produkt berechnet Mapbox die Linie.",
     expect:"saveRoute", nextLabel:"Strecke überwachen",
-    enter: async()=>{ setClock("21:05"); S.onboarded=true; startDraft(); go("new"); } },
+    enter: async()=>{ setClock("21:05"); S.onboarded=true; startDraft(); go("new","demo"); } },
   { letter:"C", title:"Erste Punkte, dann schläft die App", when:"Mittwochabend, 21:06",
     text:"Für die erste Strecke gibt es 50 Brum-Punkte. Auf der Startseite sieht Max seine Strecke und drei Quests. Ab jetzt muss er die App nicht mehr öffnen.",
     tech:"<b>Gamification</b> belohnt, was dem Verkehr hilft: vor der Abfahrt prüfen, entlastende Route nehmen, Baustellen melden. Die Punkte haben keinen Geldwert.",
@@ -1238,7 +1488,7 @@ const STEPS = [
     enter: async()=>{ setClock("05:00"); lockState={date:DATE_THU, time:"05:00", sleep:"Max schläft. Das Backend arbeitet."}; go("home"); await runPipeline(); render(); } },
   { letter:"E", title:"07:10 Uhr: die Push-Nachricht", when:"Donnerstag, 07:10",
     text:"30 Minuten vor der Abfahrt meldet sich die App. Die Nachricht nennt die Baustelle und schlägt gleich eine bessere Route vor.",
-    tech:"Vor dem Versand rechnet das Backend den <b>Routenvergleich</b> für 07:40: Baustellen, Fahrzeit, Auslastung und Umweg. Versand über Firebase Web Push.",
+    tech:"Vor dem Versand rechnet das Backend den <b>Routenvergleich</b> für 07:40: Baustellen, Fahrzeit und Umweg. Versand über GitHub Actions und den Push-Dienst des Handys.",
     expect:"openPush", nextLabel:"Max tippt auf die Nachricht",
     enter: async()=>{ setClock("07:10"); const r=S.routes[0]; checkMode="dep"; const c = await compareRoutes(r, hourOf(r.time), true); const h=matches[r.id]||[];
       lockState={date:DATE_THU, time:"07:10", notif:{title:`${r.name}: 2 Baustellen auf deiner Strecke`, body:`${h[0]?h[0].inc.titel:""}. ${c.better?`Tipp: via ${c.rec.via}, ${c.rec.min} Min.`:"Plane mehr Zeit ein."}`}}; render(); log(`<span class="warn">Firebase Web Push an Max gesendet</span>`); } },
@@ -1248,12 +1498,12 @@ const STEPS = [
     expect:"check", nextLabel:"Route prüfen",
     enter: async()=>{ setClock("07:11"); lockState=null; showAlt=false; delete checkRes[S.routes[0].id]; go("detail", S.routes[0].id); } },
   { letter:"G", title:"Drei Routen im Vergleich", when:"Donnerstag, 07:12",
-    text:"Max prüft die Route. Die App vergleicht drei Wege. Die Route über Weissenbühl wäre fast gleich schnell, ist aber stärker ausgelastet und hat selbst eine Baustelle. Empfohlen wird deshalb die Könizstrasse mit freier Kapazität.",
-    tech:"Auslastung = Verkehrsstärke / geschätzte Kapazität. Score = Fahrzeit + Belastungsmalus + Baustellen + Umweg. <b>Verkehrsstärken sind Demo-Werte</b>, weil ASTRA-Echtzeit und KSVD noch nicht angebunden sind. Die Kapazität ist aus der swissTLM3D-Strassenklasse geschätzt.",
+    text:"Max prüft die Route. Die App vergleicht drei Wege. Die Route über Weissenbühl wäre gleich schnell, hat aber selbst eine Baustelle. Empfohlen wird deshalb die Könizstrasse, auf der keine Baustelle liegt.",
+    tech:"Score = Fahrzeit + Baustellen + Umweg, tiefer ist besser. Jede Baustelle zählt 3 Minuten Fahrzeit und 5 Punkte Malus. Mit Mapbox-Token berechnet die App echte Routen und Alternativen. <b>Die Baustellen sind Beispieldaten</b>, bis das Backend die echten Daten von ASTRA und Stadt Bern holt.",
     expect:"takeAlt", nextLabel:"Empfehlung übernehmen",
     enter: async()=>{ setClock("07:12"); lockState=null; go("detail", S.routes[0].id); checkMode="dep"; await compareRoutes(S.routes[0], hourOf(S.routes[0].time), false); render(); if(!S.badges.includes("checker")) addXP(REWARD.check,"Lagecheck vor der Abfahrt","checker"); scrollToCmp(); } },
   { letter:"H", title:"Er nimmt die entlastende Route", when:"Donnerstag, 07:13",
-    text:"Max übernimmt die Empfehlung für heute. Er spart Zeit und bekommt den Entlastungs-Bonus, weil er die volle Schwarzenburgstrasse meidet.",
+    text:"Max übernimmt die Empfehlung für heute. Er spart Zeit und bekommt den Entlastungs-Bonus, weil er die Baustellen auf der Schwarzenburgstrasse meidet.",
     tech:"Die Wahl wird im Backend als <b>zugewiesene Fahrt</b> gezählt. Später kann das System damit Pendelnde auf mehrere Umfahrungen verteilen, statt alle auf dieselbe zu schicken (Parameter extraLoad).",
     enter: async()=>{ setClock("07:13"); lockState=null; go("detail", S.routes[0].id); const r=S.routes[0], cr=checkRes[r.id]; if(cr && cr.better && !r.altDay) takeAlt(r, cr.rec.altIdx); scrollToCmp(); } },
   { letter:"I", title:"Unterwegs fällt ihm etwas auf", when:"Donnerstag, 07:34",
@@ -1295,18 +1545,21 @@ function tourHook(action){
   setTimeout(()=>{ cur++; renderStory(); busy=true; STEPS[cur].enter().then(()=>{busy=false; renderStory();}); }, reduce()?0:1300);
 }
 /* ---------- Datenquellen-Tabelle ---------- */
-$("srcTbl").innerHTML = [
-  `<tr><td><strong>ASTRA Baustellen</strong><br><span class="no">opentransportdata.swiss, DATEX II</span></td><td>Baustellen National- und Kantonsstrassen</td><td class="no">Format nachgebaut, Beispieleinträge</td></tr>`,
-  `<tr><td><strong>Stadt Bern KOER</strong><br><span class="no">ArcGIS REST, GeoJSON, LV95</span></td><td>Kommunale Baustellen</td><td class="no">Format nachgebaut, Beispieleinträge</td></tr>`
-].concat(TRAFFIC_SOURCES.map(src=>`<tr><td><strong>${src.name}</strong><br><span class="no">${src.detail}</span></td><td>${src.kind==="live"?"Verkehr in Echtzeit":src.kind==="statistic"?"Jahreswerte (DTV)":"Beispielwerte"}</td><td class="no">${src.connected?(src.kind==="demo"?"aktiv, keine Messwerte":"aktiv"):"nicht angebunden"}. ${src.reason}</td></tr>`))
- .concat([`<tr><td><strong>swisstopo swissTLM3D</strong><br><span class="no">Strassen und Wege, OBJEKTART</span></td><td>Strassenklasse für Kapazität</td><td class="no">Klassen-Codes echt, Zuordnung zu Abschnitten von Hand</td></tr>`]).join("");
+function renderSrcTbl(){ $("srcTbl").innerHTML = [
+  `<tr><td><strong>ASTRA Baustellen</strong><br><span class="no">opentransportdata.swiss, DATEX II</span></td><td>Baustellen National- und Kantonsstrassen</td><td class="no">${liveStatus==="ok"?`live über GitHub Actions und Xano: ${liveIncidents.filter(i=>i.quelle==="astra").length} Meldungen Region Bern, verortet über Autobahnanschlüsse`:"Beispieleinträge in der Story"}</td></tr>`,
+  `<tr><td><strong>Stadt Bern KOER</strong><br><span class="no">ArcGIS REST, GeoJSON, LV95</span></td><td>Kommunale Baustellen</td><td class="no">${liveStatus==="ok"?`live über Xano: ${liveIncidents.filter(i=>i.quelle==="stadt_bern").length} echte Baustellen`:liveStatus==="lädt"?"wird geladen …":"nicht erreichbar, Beispieleinträge"}</td></tr>`
+  ,`<tr><td><strong>Mapbox</strong><br><span class="no">Karte, Adresssuche, Routing mit Alternativen</span></td><td>Echte Strassen und Routen</td><td class="no">${MB_ON?"aktiv (Token eingetragen)":"Demo-Modus: Token noch nicht eingetragen"}</td></tr>`
+].join(""); }
+renderSrcTbl();
 
 /* App-Modus: auf schmalen Bildschirmen automatisch, in der installierten PWA immer (Klasse "force") */
 const mq = matchMedia("(max-width:900px)");
 function applyMode(){ if(!document.body.classList.contains("force")) document.body.classList.toggle("appmode", mq.matches); renderStory(); }
 if(mq.addEventListener) mq.addEventListener("change", applyMode);
 if(!document.body.classList.contains("force")) document.body.classList.toggle("appmode", mq.matches);
+loadMapbox();
 gotoStep(0,true);
+loadLiveIncidents();
 })();
 </script>
 <script>

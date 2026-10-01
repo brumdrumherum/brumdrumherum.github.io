@@ -1,40 +1,16 @@
-# Brumdrumherum als App aufs Handy
+# Brumdrumherum – Version 1.0 (Sprint 1)
 
-Dieser Ordner ist die installierbare Version des Prototyps (Progressive Web App).
-Einmal online gestellt, erscheint Brumdrumherum mit eigenem Symbol auf dem Home-Bildschirm
-und öffnet im Vollbild ohne Browserleiste, wie eine normale App. Sie funktioniert auch offline.
+Details in `CHANGELOG.md`.
 
-## 1. Online stellen mit GitHub Pages (kostenlos, ca. 5 Minuten)
+## 1. Dateien hochladen
+Im Repository `brumdrumherum.github.io`: «Add file» → «Upload files» und diese fünf Dateien hineinziehen:
+`index.html`, `sw.js`, `config.js`, `CHANGELOG.md`, `LIESMICH.md`. Dann «Commit changes».
 
-1. Auf github.com anmelden und ein neues, öffentliches Repository anlegen, z. B. `brumdrumherum`.
-2. «Add file» → «Upload files» und den **Inhalt** dieses Ordners hochladen
-   (index.html, manifest.webmanifest, sw.js und den Ordner icons). Mit «Commit changes» bestätigen.
-3. Im Repository «Settings» → «Pages» öffnen. Bei «Branch» `main` und `/ (root)` wählen, speichern.
-4. Nach ein bis zwei Minuten erscheint dort die Adresse, z. B.
-   `https://<benutzername>.github.io/brumdrumherum/`.
+## 2. Mapbox-Token in config.js eintragen (einmalig)
+Auf `config.js` klicken → Stift-Symbol → `HIER_DEN_MAPBOX_TOKEN_EINFUEGEN` durch den Mapbox-Token aus Bitwarden ersetzen (Anführungszeichen stehen lassen) → «Commit changes».
 
-## 2. Auf dem Handy installieren
+## 3. Auf dem Handy prüfen
+App schliessen und neu öffnen, eventuell zweimal. Tab «Karte» und «Neue Strecke» (z.B. Köniz → Bern Bahnhof) ausprobieren.
 
-**iPhone (Safari):** Adresse öffnen → Teilen-Symbol → «Zum Home-Bildschirm» → «Hinzufügen».
-Wichtig: Es muss Safari sein, nicht Chrome oder die Teams-App.
-
-**Android (Chrome):** Adresse öffnen → Menü (⋮) → «App installieren» oder «Zum Startbildschirm hinzufügen».
-
-Danach die App über das gelbe Symbol auf dem Home-Bildschirm starten.
-
-## 3. Bedienung
-
-- Unten liegt die Story von A bis Z als Leiste. «Weiter» führt Schritt für Schritt durch den Tag von Max.
-- Auf den Titel der Leiste tippen, um Erklärung und Backend-Log aufzuklappen.
-- Mit «×» die Story ausblenden und die App frei nutzen. Unter «Profil» lässt sie sich wieder einblenden.
-
-## 4. Was diese Version (noch) nicht kann
-
-- Push-Nachrichten sind simuliert. Echte Push-Nachrichten brauchen Firebase und ein Backend.
-- Baustellen sind nachgebaute Einträge im Format der echten Schnittstellen, Verkehrsstärken sind Demo-Werte.
-- Details dazu: Produktdokumentation Sprint 1 im Teams-Ordner.
-
-## 5. Aktualisieren
-
-Neue Version der Dateien hochladen und in `sw.js` die Zeile `const CACHE = "brumdrumherum-v1";`
-auf `v2` usw. erhöhen. Sonst zeigt das Handy weiter die zwischengespeicherte alte Version.
+## 4. Release «Sprint 1» anlegen
+Auf der Startseite rechts «Create a new release» → Tag `v1.0` → Titel «Version 1.0 – Sprint 1» → «Publish release».
