@@ -39,11 +39,31 @@ export function buildJunctions(osm) {
   }
   return out;
 }
+// Feste Liste der Autobahnanschlüsse in der Region Bern.
+// Quelle: OpenStreetMap (© OpenStreetMap-Mitwirkende, ODbL), abgerufen am 1.10.2026 über die Overpass-API.
+// Anschlüsse ändern sich praktisch nie. Deshalb fragt der Zeitplan OpenStreetMap nicht bei jedem Lauf.
+// Neu laden: im Workflow die Variable REFRESH_JUNCTIONS auf "1" setzen.
+const JUNCTIONS_BERN = [
+  ["Allmendingen", 46.92422, 7.50698], ["Bern Bethlehem", 46.95292, 7.39708], ["Bern Neufeld", 46.96418, 7.43095],
+  ["Bern-Brünnen", 46.94464, 7.36971], ["Bern-Bümpliz", 46.94208, 7.40533], ["Bern-Forsthaus", 46.95187, 7.40892],
+  ["Bern-Ostring", 46.94536, 7.47298], ["Bern-Wankdorf", 46.95978, 7.47235], ["Bern-Weyermannshaus", 46.95235, 7.40806],
+  ["Flamatt", 46.88865, 7.32338], ["Lyss-Süd", 47.05851, 7.30238], ["Mühleberg", 46.95128, 7.32825],
+  ["Münchenbuchsee", 47.03807, 7.4298], ["Muri", 46.92432, 7.50575], ["Niederwangen", 46.93049, 7.38191],
+  ["Rubigen", 46.88976, 7.53911], ["Schüpfen", 47.0482, 7.38259], ["Verzweigung Schönbühl", 47.01594, 7.49305],
+  ["Verzweigung Wankdorf", 46.96978, 7.46887]
+];
 async function loadJunctions() {
-  const q = `[out:json][timeout:30];node["highway"="motorway_junction"](${BBOX.latMin},${BBOX.lonMin},${BBOX.latMax},${BBOX.lonMax});out;`;
-  const res = await fetch(OVERPASS_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Brumdrumherum-Studienprojekt-BFH" }, body: "data=" + encodeURIComponent(q) });
-  if (!res.ok) throw new Error("OpenStreetMap (Overpass) antwortet mit " + res.status);
-  return buildJunctions(await res.json());
+  const fixed = buildJunctions({ elements: JUNCTIONS_BERN.map(([name, lat, lon]) => ({ lat, lon, tags: { name } })) });
+  if (process.env.REFRESH_JUNCTIONS !== "1") return { junctions: fixed, source: "feste Liste (OpenStreetMap, Stand 1.10.2026)" };
+  try {
+    const q = `[out:json][timeout:30];node["highway"="motorway_junction"](${BBOX.latMin},${BBOX.lonMin},${BBOX.latMax},${BBOX.lonMax});out;`;
+    const res = await fetch(OVERPASS_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Brumdrumherum-Studienprojekt-BFH" }, body: "data=" + encodeURIComponent(q), signal: AbortSignal.timeout(30000) });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return { junctions: buildJunctions(await res.json()), source: "OpenStreetMap live" };
+  } catch (e) {
+    console.log(`OpenStreetMap nicht erreichbar (${e.message}), nutze die feste Liste.`);
+    return { junctions: fixed, source: "feste Liste (Rückfall)" };
+  }
 }
 
 // --- Namen von Anschlüssen aus dem Meldungstext ---
@@ -121,9 +141,8 @@ export async function main() {
   const token = process.env.ASTRA_TOKEN;
   if (!token) { console.error("Fehler: ASTRA_TOKEN fehlt. Bitte in den GitHub Secrets anlegen."); process.exit(1); }
 
-  const tj = Date.now();
-  const junctions = await loadJunctions();
-  console.log(`OpenStreetMap: ${junctions.size} Autobahnanschlüsse in der Region Bern geladen (${((Date.now() - tj) / 1000).toFixed(1)} s)`);
+  const { junctions, source } = await loadJunctions();
+  console.log(`Anschlüsse: ${junctions.size} in der Region Bern, Quelle: ${source}`);
 
   const t0 = Date.now();
   const res = await fetch(ASTRA_URL, { method: "POST", headers: { "Authorization": "Bearer " + token, "SOAPAction": SOAP_ACTION, "Content-Type": "text/xml; charset=utf-8" }, body: BODY });
