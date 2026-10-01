@@ -153,6 +153,23 @@ export async function main() {
 
   writeFileSync("astra-bern.json", JSON.stringify({ created: new Date().toISOString(), stats, items }, null, 1));
   console.log("\nAlle Treffer im Format der Tabelle «incidents» sind als Datei astra-bern.json unter «Artifacts» gespeichert.");
+  await sendToXano(items);
+}
+
+// --- An Xano senden: geschützte Schnittstelle POST /astra (Gruppe «cron») ---
+// XANO_URL ist nicht geheim (steht im Workflow). CRON_SECRET kommt aus den GitHub Secrets.
+async function sendToXano(items) {
+  const url = process.env.XANO_URL, secret = process.env.CRON_SECRET;
+  if (!url || !secret) { console.log("\nXano: nicht gesendet (XANO_URL oder CRON_SECRET fehlt)."); return; }
+  const payload = items.map(({ _info, ...rest }) => rest);
+  const res = await fetch(url.replace(/\/$/, "") + "/astra", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Cron-Secret": secret },
+    body: JSON.stringify({ items: payload })
+  });
+  const text = await res.text();
+  console.log(`\nXano: HTTP ${res.status} ${text.slice(0, 300)}`);
+  if (!res.ok) process.exit(1);
 }
 
 if (!process.env.NO_MAIN) main().catch(e => { console.error("Fehler:", e.message); process.exit(1); });
