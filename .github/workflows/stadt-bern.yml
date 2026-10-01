@@ -1,0 +1,25 @@
+# Brumdrumherum – Baustellen der Stadt Bern (KOER) aktualisieren
+# Startet die Xano-Funktion import_stadt_bern über die geschützte Schnittstelle POST /stadt-bern (Gruppe «cron»).
+# Läuft jede Nacht und an Werktagen stündlich zu Pendelzeiten. Von Hand: «Actions» → «Stadt Bern Baustellen» → «Run workflow».
+name: Stadt Bern Baustellen
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 1 * * *"        # nachts
+    - cron: "0 4-7 * * 1-5"    # Morgen-Pendelzeit, stündlich
+    - cron: "0 14-17 * * 1-5"  # Abend-Pendelzeit, stündlich
+
+jobs:
+  stadt-bern:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Import in Xano starten
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          XANO_URL: https://x8ki-letl-twmt.n7.xano.io/api:46MELtpt
+        run: |
+          code=$(curl -s -o antwort.txt -w "%{http_code}" -m 240 -X POST "$XANO_URL/stadt-bern" -H "X-Cron-Secret: $CRON_SECRET" -H "Content-Type: application/json" -d '{}')
+          echo "Xano: HTTP $code $(head -c 300 antwort.txt)"
+          test "$code" = "200"
