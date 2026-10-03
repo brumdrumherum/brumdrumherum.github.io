@@ -6,6 +6,7 @@ Diese Datei beim Weiterarbeiten mit der KI immer mit hochladen.
 ## Version 1.0 – Sprint 1 (Stand 1.10.2026)
 
 ### App
+- **Demo-Story ergänzt:** neuer Schritt K «Nachtsperrungen bleiben still» (A1 Bethlehem–Brünnen, nur nachts), Backend-Ablauf wie er wirklich läuft (GitHub Actions für ASTRA, Xano für Stadt Bern), Zusammenfassung mit echten Zahlen und Erkenntnissen.
 - **Echte App statt Story:** `index.html` startet ohne Story, ohne simulierte Uhrzeit und ohne Beispieldaten. Erst Begrüssung, dann direkt «Neue Strecke» mit Adresssuche. Die Story mit Max bleibt als `demo.html` für Pitch, Showroom und Coaching.
 - **Speichern auf dem Handy:** Strecken, Meldungen und Punkte bleiben nach dem Neustart erhalten (nur auf diesem Gerät). Im Profil lassen sich alle Daten löschen.
 - **Kein Login:** Jedes Gerät erhält eine zufällige, anonyme Nummer (für die spätere Anmeldung bei Xano für Push). Keine Namen, keine Mail. Login ist Roadmap, falls mehrere Geräte nötig werden.
@@ -20,6 +21,8 @@ Diese Datei beim Weiterarbeiten mit der KI immer mit hochladen.
 - **Stadt Bern (KOER):** Xano-Funktion `import_stadt_bern` holt die Baustellen, filtert abgelaufene, speichert jede nur einmal und übernimmt keine Namen oder Telefonnummern. Abgleich mit der ganzen Baustellenfläche, Korridor 100 m.
 - **ASTRA:** GitHub Actions holt alle Meldungen (DATEX II, ca. 13 MB) und filtert auf Bern. Xano war dafür zu langsam (Fehler 502). Verortung ohne TMC-Tabelle über die Anschlussnamen im Text und 19 Anschlüsse aus OpenStreetMap, Korridor 250 m. TMC-Tabelle 7.3 bei ASTRA angefragt.
 - **Nachtsperrungen:** Zeitfenster wie «nachts 20:00–05:00» werden ausgelesen. Sie lösen keine Warnung aus. Beim ersten Lauf waren alle 7 Berner ASTRA-Meldungen Nachtsperrungen.
+
+- **Updates kommen sofort an:** Der Service Worker lädt Seiten jetzt immer zuerst frisch aus dem Netz (nur offline aus dem Speicher). Vorher konnten Handys nach einem Update noch die alte Version zeigen.
 
 ### Backend und Automatisierung
 - Xano: Tabelle `incidents`, öffentliche Lese-Schnittstelle `GET /incidents` (Gruppe «app»), geschützte Schnittstellen `POST /astra` und `POST /stadt-bern` (Gruppe «cron»).

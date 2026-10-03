@@ -699,7 +699,7 @@ function sitesOn(pts, live){
 }
 function ensureData(){
   if(incidents.length) return;
-  incidents = importAstra().concat(importBern()).map(i=>Object.assign(i,{aktiv:isRelevant(i)}));
+  incidents = importAstra().concat([demoNightAstra()], importBern()).map(i=>Object.assign(i,{aktiv:isRelevant(i)}));
   matches = match().res; lastRun = new Date(TODAY);
 }
 async function checkRoute(r,hour){
@@ -726,6 +726,12 @@ function importAstra(){
       lat:parseFloat(q("latitude")), lon:parseFloat(q("longitude"))});
   }
   return out;
+}
+// Beispiel nach echtem ASTRA-Vorbild (Lauf vom 1.10.2026): Sperrung nur nachts, löst keine Warnung aus.
+function demoNightAstra(){
+  return {id:"situation.648726.1.1.1", quelle:"astra", titel:"A1 Bern → Murten zwischen Anschluss Bern-Bethlehem und Anschluss Bern-Brünnen: Strecke gesperrt",
+    typ:"RoadOrCarriagewayOrLaneManagement", start:"2026-08-28", ende:"2026-10-21", lat:46.94878, lon:7.3834,
+    night_only:true, daily_from:"20:00", daily_to:"05:00"};
 }
 function importBern(){
   return KOER_GEOJSON.features.map(f=>{
@@ -1433,10 +1439,10 @@ function renderStory(){
 }
 function finalSummary(){
   return `<div class="summary">
-    <div><h3>MODI-Kette</h3><ul><li>Anbieter 1: ASTRA, DATEX II</li><li>Anbieter 2: Stadt Bern KOER, GeoJSON in LV95</li><li>Nutzer: Brumdrumherum</li><li>Endnutzer: Max</li></ul></div>
-    <div><h3>Echt im Prototyp</h3><ul><li>Datenformate beider Anbieter</li><li>LV95-Umrechnung, 100-m-Abgleich</li><li>Mapbox-Karte und Routing (mit Token)</li></ul></div>
-    <div><h3>Demo oder geschätzt</h3><ul><li>Baustellen: nachgebaute Einträge</li><li>Push: simuliert</li><li>Echte Karte und Routen nur mit Mapbox-Token</li></ul></div>
-    <div><h3>Nächste Schritte</h3><ul><li>ASTRA-Token, Echtdaten im Notebook</li><li>KSVD-Werte für die Strecken</li><li>User-Tests: motivieren die Punkte?</li></ul></div>
+    <div><h3>MODI-Kette</h3><ul><li>Anbieter 1: ASTRA, DATEX II</li><li>Anbieter 2: Stadt Bern KOER, GeoJSON in LV95</li><li>Vermittler heute: opentransportdata.swiss und Xano, Ziel: MODI</li><li>Nutzer: Brumdrumherum, Endnutzer: Max</li></ul></div>
+    <div><h3>Echt im Prototyp (1.10.2026)</h3><ul><li>64 Baustellen der Stadt Bern, live</li><li>3'093 ASTRA-Meldungen, 7 in der Region Bern</li><li>Automatisch: nachts und zu Pendelzeiten</li><li>Mapbox: Karte, Adresssuche, Routen</li></ul></div>
+    <div><h3>Erkenntnisse aus echten Daten</h3><ul><li>Drei Arten von Ortsangaben: LV95-Flächen, TMC-Codes, grobe Koordinaten</li><li>Alle Berner ASTRA-Sperrungen nur nachts: ohne Zeitfenster sieben Fehlalarme</li><li>Offene Daten sind unvollständig, z.B. Baustellen ohne ID</li></ul></div>
+    <div><h3>Nächste Schritte</h3><ul><li>Echte Push-Nachrichten</li><li>TMC-Tabelle von ASTRA einbauen</li><li>5 Interviews und User-Tests</li></ul></div>
   </div>`;
 }
 
@@ -1444,10 +1450,13 @@ function finalSummary(){
    BACKEND-ABLAUF (nutzt die Module von oben)
    ====================================================================== */
 async function runPipeline(){
-  log(`<span class="dim">[05:00] Auslöser: GitHub Actions, Zeitplan alle 10 Minuten</span>`);
-  await wait(350); log(`GET opentransportdata.swiss, DATEX II Baustellen …`);
-  const a = importAstra(); await wait(350);
-  log(`<span class="ok">  ✓ ${a.length} Meldungen aus XML gelesen (ASTRA)</span>`);
+  log(`<span class="dim">[05:00] GitHub Actions, Zeitplan «ASTRA Baustellen» (nachts und zu Pendelzeiten alle 15 Min.)</span>`);
+  await wait(350); log(`POST api.opentransportdata.swiss, DATEX II, alle Meldungen der Schweiz (echt: ca. 13 MB, 3'093 Meldungen)`);
+  const a = importAstra().concat([demoNightAstra()]); await wait(350);
+  log(`<span class="ok">  ✓ Filter Region Bern, Verortung über Autobahnanschlüsse (OpenStreetMap), weil ASTRA meist nur TMC-Codes liefert</span>`);
+  log(`<span class="dim">    «nachts voraussichtlich … 20:00 bis … 05:00» → night_only, keine Morgen-Warnung</span>`);
+  log(`POST Xano /astra, geschützt mit dem Zeitplan-Passwort → ${a.length} ASTRA-Meldungen gespeichert`);
+  await wait(250); log(`<span class="dim">[05:00] GitHub Actions, Zeitplan «Stadt Bern Baustellen» → Xano-Funktion import_stadt_bern</span>`);
   log(`GET map.bern.ch/arcgis/rest/services/KOER/MapServer/…/query?f=geojson`);
   const b = importBern(); await wait(350);
   log(`<span class="ok">  ✓ ${b.length} Baustellen-Polygone gelesen (Stadt Bern)</span>`);
@@ -1491,7 +1500,7 @@ const STEPS = [
     enter: async()=>{ setClock("21:04"); lockState=null; go("onboarding"); } },
   { letter:"B", title:"Er speichert seinen Arbeitsweg", when:"Mittwochabend, 21:05",
     text:"Max gibt Start und Ziel ein und stellt seine übliche Abfahrt ein: Montag bis Freitag um 07:40. Mehr muss er nicht tun.",
-    tech:"Die Route wird als Linie in der Xano-Tabelle <b>routes</b> gespeichert (WGS84). Kein GPS-Tracking, keine Bewegungsdaten. Im Produkt berechnet Mapbox die Linie.",
+    tech:"Die Strecke wird als Linie auf dem Handy gespeichert (WGS84). Kein GPS-Tracking, kein Konto: Das Gerät hat nur eine zufällige, anonyme Nummer. In der echten App berechnet Mapbox die Linie aus den eingegebenen Adressen.",
     expect:"saveRoute", nextLabel:"Strecke überwachen",
     enter: async()=>{ setClock("21:05"); S.onboarded=true; startDraft(); go("new","demo"); } },
   { letter:"C", title:"Erste Punkte, dann schläft die App", when:"Mittwochabend, 21:06",
@@ -1499,15 +1508,15 @@ const STEPS = [
     tech:"<b>Gamification</b> belohnt, was dem Verkehr hilft: vor der Abfahrt prüfen, entlastende Route nehmen, Baustellen melden. Die Punkte haben keinen Geldwert.",
     enter: async()=>{ setClock("21:06"); if(!S.routes.length){ startDraft(); saveDraft(); } else go("home"); } },
   { letter:"D", title:"Nachts arbeitet das Backend", when:"Donnerstag, 05:00",
-    text:"Während Max schläft, holt das Backend die Baustellen von zwei Anbietern, die bisher nicht verbunden sind, und legt sie über seine Strecke. Zwei Baustellen liegen im 100-Meter-Korridor.",
-    tech:"<b>ASTRA</b> liefert DATEX II (XML, WGS84), <b>Stadt Bern KOER</b> liefert GeoJSON-Polygone in LV95. Umrechnung mit der swisstopo-Formel, dann Bounding Box und Haversine. Genau diese Übersetzungsarbeit soll MODI künftig als gemeinsame Vermittlungsschicht übernehmen. Im Log rechts siehst du jeden Schritt.",
+    text:"Während Max schläft, holen GitHub Actions und Xano die Baustellen von zwei Anbietern, die bisher nicht verbunden sind, und legen sie über seine Strecke. Zwei Baustellen liegen im 100-Meter-Korridor.",
+    tech:"<b>ASTRA</b>: GitHub Actions holt alle Meldungen der Schweiz (DATEX II, rund 13 MB), filtert auf Bern und verortet sie über die Autobahnanschlüsse, weil ASTRA meist nur TMC-Codes liefert. Xano war dafür zu langsam. <b>Stadt Bern</b>: Xano holt die GeoJSON-Flächen. Beide landen in derselben Tabelle. Drei Arten von Ortsangaben zu übersetzen ist genau die Arbeit, die MODI künftig übernehmen soll.",
     enter: async()=>{ setClock("05:00"); lockState={date:DATE_THU, time:"05:00", sleep:"Max schläft. Das Backend arbeitet."}; go("home"); await runPipeline(); render(); } },
   { letter:"E", title:"07:10 Uhr: die Push-Nachricht", when:"Donnerstag, 07:10",
     text:"30 Minuten vor der Abfahrt meldet sich die App. Die Nachricht nennt die Baustelle und schlägt gleich eine bessere Route vor.",
     tech:"Vor dem Versand rechnet das Backend den <b>Routenvergleich</b> für 07:40: Baustellen, Fahrzeit und Umweg. Versand über GitHub Actions und den Push-Dienst des Handys.",
     expect:"openPush", nextLabel:"Max tippt auf die Nachricht",
     enter: async()=>{ setClock("07:10"); const r=S.routes[0]; checkMode="dep"; const c = await compareRoutes(r, hourOf(r.time), true); const h=matches[r.id]||[];
-      lockState={date:DATE_THU, time:"07:10", notif:{title:`${r.name}: 2 Baustellen auf deiner Strecke`, body:`${h[0]?h[0].inc.titel:""}. ${c.better?`Tipp: via ${c.rec.via}, ${c.rec.min} Min.`:"Plane mehr Zeit ein."}`}}; render(); log(`<span class="warn">Firebase Web Push an Max gesendet</span>`); } },
+      lockState={date:DATE_THU, time:"07:10", notif:{title:`${r.name}: 2 Baustellen auf deiner Strecke`, body:`${h[0]?h[0].inc.titel:""}. ${c.better?`Tipp: via ${c.rec.via}, ${c.rec.min} Min.`:"Plane mehr Zeit ein."}`}}; render(); log(`<span class="warn">Push über GitHub Actions und den Push-Dienst des Handys gesendet: «${esc(lockState.notif.title)}»</span>`); } },
   { letter:"F", title:"Was liegt auf dem Weg?", when:"Donnerstag, 07:11",
     text:"Max sieht auf der Karte, wo die Baustellen liegen und woher die Information stammt: eine Gasleitung am Eigerplatz und eine Kanalsanierung an der Monbijoustrasse, beide von der Stadt Bern.",
     tech:"Jede Baustelle zeigt ihre <b>Quelle</b> (ASTRA, Stadt Bern oder Community) und ihren Abstand zur Strecke. So bleibt nachvollziehbar, welcher Anbieter welche Daten liefert.",
@@ -1515,7 +1524,7 @@ const STEPS = [
     enter: async()=>{ setClock("07:11"); lockState=null; showAlt=false; delete checkRes[S.routes[0].id]; go("detail", S.routes[0].id); } },
   { letter:"G", title:"Drei Routen im Vergleich", when:"Donnerstag, 07:12",
     text:"Max prüft die Route. Die App vergleicht drei Wege. Die Route über Weissenbühl wäre gleich schnell, hat aber selbst eine Baustelle. Empfohlen wird deshalb die Könizstrasse, auf der keine Baustelle liegt.",
-    tech:"Score = Fahrzeit + Baustellen + Umweg, tiefer ist besser. Jede Baustelle zählt 3 Minuten Fahrzeit und 5 Punkte Malus. Mit Mapbox-Token berechnet die App echte Routen und Alternativen. <b>Die Baustellen sind Beispieldaten</b>, bis das Backend die echten Daten von ASTRA und Stadt Bern holt.",
+    tech:"Score = Fahrzeit + Baustellen + Umweg, tiefer ist besser. Jede Baustelle zählt 3 Minuten Fahrzeit und 5 Punkte Malus. In der Story sind die Baustellen Beispieldaten, damit sie immer gleich abläuft. In der echten App kommen sie live aus Xano, die Routen von Mapbox.",
     expect:"takeAlt", nextLabel:"Empfehlung übernehmen",
     enter: async()=>{ setClock("07:12"); lockState=null; go("detail", S.routes[0].id); checkMode="dep"; await compareRoutes(S.routes[0], hourOf(S.routes[0].time), false); render(); if(!S.badges.includes("checker")) addXP(REWARD.check,"Lagecheck vor der Abfahrt","checker"); scrollToCmp(); } },
   { letter:"H", title:"Er nimmt die entlastende Route", when:"Donnerstag, 07:13",
@@ -1535,8 +1544,12 @@ const STEPS = [
       go("profile");
       if(S.stats.streak===0){ S.stats.streak=1; addXP(REWARD.dayDone, "Tag 1 geschafft", null); }
       render(); } },
+  { letter:"K", title:"Nachtsperrungen bleiben still", when:"Donnerstag, 18:10",
+    text:"Zu Hause schaut Max auf die Karte. Auf der A1 zwischen Bethlehem und Brünnen ist die Strecke gesperrt, aber nur nachts von 20 bis 5 Uhr. Deshalb hat ihn die App am Morgen nicht gewarnt. Er bekommt nur Nachrichten, die ihn wirklich betreffen.",
+    tech:"Echte Erkenntnis aus den ASTRA-Daten vom 1.10.2026: Alle 7 Meldungen in der Region Bern waren <b>Nachtsperrungen</b>. Die App liest das Zeitfenster aus dem Meldungstext («Dauer: nachts … 20:00 bis 05:00»). Ohne diese Prüfung hätte Max sieben Fehlalarme bekommen und die Nachrichten bald abgeschaltet.",
+    enter: async()=>{ setClock("18:10"); lockState=null; ensureData(); go("map"); setTimeout(()=>{ const l=[...screen.querySelectorAll(".label")].find(x=>x.textContent.includes("ASTRA-Meldungen")); if(l) screen.scrollTop = l.offsetTop - 8; },0); } },
   { letter:"Z", title:"Was dahinter steckt", when:"Zusammenfassung",
-    text:"Von der ersten Strecke bis zur Bilanz hat Max die App dreimal kurz geöffnet. Alles andere lief im Hintergrund. Ab hier kannst du die App frei ausprobieren, weitere Strecken anlegen oder die Story neu starten.",
+    text:"Von der ersten Strecke bis zum Blick auf die Karte hat Max die App viermal kurz geöffnet. Alles andere lief im Hintergrund. Ab hier kannst du die Demo frei ausprobieren oder die Story neu starten. Die echte App mit Live-Daten findest du unter brumdrumherum.github.io.",
     tech:"", final:true,
     enter: async()=>{ setClock("18:06"); lockState=null; closeSheet(); go("home"); } }
 ];
