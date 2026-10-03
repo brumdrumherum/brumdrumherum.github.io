@@ -1,7 +1,7 @@
 // Service Worker: macht die App offline nutzbar und installierbar.
 // Bei jeder neuen Version die Nummer erhöhen (z.B. 1.0.5, 2.0.0, ...), sonst zeigen die Handys die alte Version.
-const CACHE = "brumdrumherum-1.0.4"; // Version 1.0 (Sprint 1), interner Zwischenstand 4
-const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
+const CACHE = "brumdrumherum-1.0.5"; // Version 1.0 (Sprint 1), interner Zwischenstand 5
+const FILES = ["./", "./index.html", "./demo.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x))))); self.clients.claim(); });
 self.addEventListener("fetch", e => {

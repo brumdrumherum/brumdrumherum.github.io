@@ -6,6 +6,10 @@ Diese Datei beim Weiterarbeiten mit der KI immer mit hochladen.
 ## Version 1.0 – Sprint 1 (Stand 1.10.2026)
 
 ### App
+- **Echte App statt Story:** `index.html` startet ohne Story, ohne simulierte Uhrzeit und ohne Beispieldaten. Erst Begrüssung, dann direkt «Neue Strecke» mit Adresssuche. Die Story mit Max bleibt als `demo.html` für Pitch, Showroom und Coaching.
+- **Speichern auf dem Handy:** Strecken, Meldungen und Punkte bleiben nach dem Neustart erhalten (nur auf diesem Gerät). Im Profil lassen sich alle Daten löschen.
+- **Kein Login:** Jedes Gerät erhält eine zufällige, anonyme Nummer (für die spätere Anmeldung bei Xano für Push). Keine Namen, keine Mail. Login ist Roadmap, falls mehrere Geräte nötig werden.
+- **Betrieb:** `import_stadt_bern` überspringt Baustellen ohne ID statt abzubrechen (aufgetreten am 2.10.2026, Fehler «Missing param: field_value»).
 - Installierbare Web-App (PWA) auf GitHub Pages, Dark-Mode-Design «Nachtasphalt und Markierungsgelb».
 - Geführte Story von A bis Z mit Persona Max (immer mit Beispieldaten, damit sie gleich abläuft).
 - Mapbox: echte Karte, Adresssuche in der ganzen Schweiz, Routen mit Alternativen. Token in `config.js` (wird bei Updates nicht überschrieben).
@@ -27,4 +31,4 @@ Diese Datei beim Weiterarbeiten mit der KI immer mit hochladen.
 - ASTRA-Verarbeitung in GitHub Actions statt Xano (Grösse der Daten).
 
 ### Noch offen für Sprint 2
-- Strecken dauerhaft speichern, echte Push-Nachrichten, TMC-Tabelle von ASTRA einbauen, User-Tests.
+- Strecken bei Xano anmelden (mit Gerätenummer), echte Push-Nachrichten, TMC-Tabelle von ASTRA einbauen, User-Tests.
