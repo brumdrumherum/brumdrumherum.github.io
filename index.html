@@ -201,13 +201,20 @@ select,input[type=time],input[type=text]{width:100%;padding:13px 14px;border-rad
 .word{font-size:46px;font-weight:600;line-height:.95;letter-spacing:-.02em;margin:18px 0 0}
 .word span{display:block}
 .word span:nth-child(2){color:var(--muted);font-weight:300}
-.detour{display:block;width:100%;height:auto;margin:22px 0 18px}
+.detour{display:block;width:100%;height:auto;margin:14px 0 10px}
 .detour .blk{fill:var(--s2)}
 .detour .main{stroke:var(--line);stroke-width:3;fill:none;stroke-dasharray:10 8}
 .detour .alt{stroke:var(--yellow);stroke-width:3.5;fill:none;stroke-linecap:round;stroke-dasharray:10 8;animation:draw 2.4s ease forwards .3s;stroke-dashoffset:400}
 @keyframes draw{to{stroke-dashoffset:0}}
 @media (prefers-reduced-motion:reduce){.detour .alt{animation:none;stroke-dashoffset:0}}
-.onb .lead{font-size:16px;color:var(--muted);max-width:30ch;margin:0 0 24px}
+.onb .cta{margin-top:14px;padding:0}
+.onb .word{font-size:38px;margin-top:6px}
+.onb .feat{padding:9px 0}
+.onb .detour{pointer-events:none;user-select:none}
+.notifbox{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;margin:14px 0 0;padding:14px;border-radius:16px;background:var(--s1);border:1px solid var(--line);color:var(--ink);font:inherit;cursor:pointer}
+.notifbox .ic{color:var(--muted);margin-top:1px}.notifbox.on .ic{color:var(--yellow)}
+.notifbox b{display:block;font-weight:500}.notifbox span span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.onb .lead{font-size:16px;color:var(--muted);max-width:30ch;margin:0 0 10px}
 .feat{display:flex;gap:14px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
 .feat .ic{color:var(--yellow);margin-top:1px}
 .feat b{display:block;font-weight:500}
@@ -872,6 +879,30 @@ function flushMaps(){
 
 /* --- Adresssuche und Routing (Mapbox Geocoding v6, Directions v5) --- */
 async function geocode(q){
+  // Zuerst Orte und Ziele (Search Box), dazu Adressen (Geocoding). Fällt eine Quelle aus, zählt die andere.
+  const [poi, adr] = await Promise.allSettled([searchPlaces(q), geocodeAddr(q)]);
+  const a = poi.status==="fulfilled" ? poi.value : [], b = adr.status==="fulfilled" ? adr.value : [];
+  if(poi.status==="rejected" && adr.status==="rejected") throw adr.reason;
+  const seen = new Set(), out = [];
+  for(const x of a.concat(b)){ const k = x.label.toLowerCase(); if(seen.has(k)) continue; seen.add(k); out.push(x); if(out.length>=6) break; }
+  return out;
+}
+const SB_SESSION = (crypto.randomUUID ? crypto.randomUUID() : "00000000-0000-4000-8000-" + String(Date.now()).padStart(12,"0").slice(-12));
+async function searchPlaces(q){
+  // Search Box "suggest": findet auch Orte und Ziele mit ungenauer Schreibweise. Koordinaten folgen erst beim Antippen (resolvePlace).
+  const u = `https://api.mapbox.com/search/searchbox/v1/suggest?q=${encodeURIComponent(q)}&country=ch&language=de&limit=6&proximity=7.44,46.95&types=poi,address,street,place,locality,neighborhood&session_token=${SB_SESSION}&access_token=${MAPBOX_TOKEN}`;
+  const r = await fetch(u); if(!r.ok) throw new Error("Searchbox " + r.status);
+  const j = await r.json();
+  return (j.suggestions || []).filter(f=>f.mapbox_id).map(f => ({ label: [f.name, f.place_formatted].filter(Boolean).join(", "), mbid: f.mapbox_id, poi: f.feature_type==="poi" }));
+}
+async function resolvePlace(s){
+  if(typeof s.lat === "number") return s;
+  const r = await fetch(`https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(s.mbid)}?session_token=${SB_SESSION}&access_token=${MAPBOX_TOKEN}`);
+  if(!r.ok) throw new Error("Retrieve " + r.status);
+  const f = ((await r.json()).features || [])[0]; if(!f) throw new Error("Retrieve leer");
+  s.lon = f.geometry.coordinates[0]; s.lat = f.geometry.coordinates[1]; return s;
+}
+async function geocodeAddr(q){
   const u = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}&country=ch&language=de&limit=5&proximity=7.44,46.95&access_token=${MAPBOX_TOKEN}`;
   const r = await fetch(u); if(!r.ok) throw new Error("Geocoding " + r.status);
   const j = await r.json();
@@ -951,7 +982,7 @@ function renderNewReal(){
   appbar.innerHTML = `${S.routes.length?`<button class="back" id="back">${icon("back")}Abbrechen</button>`:""}<h2 class="h1">Neue Strecke</h2><p class="lead" style="margin:0">Adressen eingeben, die Route wird berechnet</p>`;
   if($("back")) $("back").onclick = () => { rd = null; go("home"); };
   const field = (k, label, q, ok) => `<label class="f" for="a_${k}">${label}</label>
-    <div class="addr"><input id="a_${k}" type="text" autocomplete="off" placeholder="Strasse und Ort" value="${esc(q)}">${ok?`<span class="okmark">${icon("check")}</span>`:""}<div class="sugg" id="s_${k}" role="listbox"></div></div>`;
+    <div class="addr"><input id="a_${k}" type="text" autocomplete="off" placeholder="Ort, Adresse oder Ziel, z.B. Panoramacenter Thun" value="${esc(q)}">${ok?`<span class="okmark">${icon("check")}</span>`:""}<div class="sugg" id="s_${k}" role="listbox"></div></div>`;
   const r0 = rd.res && rd.res[0];
   screen.innerHTML = `
     <label class="f" for="nName">Name</label><input id="nName" type="text" value="${esc(rd.name)}">
@@ -978,8 +1009,8 @@ function renderNewReal(){
       geoTimer = setTimeout(async () => {
         try{
           const list = await geocode(inp.value.trim());
-          box.innerHTML = list.length ? list.map((s,i)=>`<button type="button" role="option" data-i="${i}">${esc(s.label)}</button>`).join("") : `<div class="none">Keine Adresse gefunden</div>`;
-          box.querySelectorAll("button").forEach(b => b.onclick = () => { const s = list[+b.dataset.i]; rd[k] = s; rd[k+"Q"] = s.label; rd.err = ""; renderNewReal(); });
+          box.innerHTML = list.length ? list.map((s,i)=>`<button type="button" role="option" data-i="${i}">${esc(s.label)}</button>`).join("") : `<div class="none">Nichts gefunden. Versuche Ort oder Adresse anders zu schreiben.</div>`;
+          box.querySelectorAll("button").forEach(b => b.onclick = async () => { try{ const s = await resolvePlace(list[+b.dataset.i]); rd[k] = s; rd[k+"Q"] = s.label; rd.err = ""; }catch(e){ rd.err = "Ort konnte nicht geladen werden. Bitte nochmals versuchen."; } renderNewReal(); });
         }catch(e){ box.innerHTML = `<div class="none">Adresssuche nicht erreichbar. Ist der Mapbox-Token eingetragen?</div>`; }
       }, 300);
     };
@@ -1067,6 +1098,7 @@ function addXP(n, why, badge, quiet){
   const after = levelOf(S.xp);
   if(after>before && !S.badges.includes("level2")) S.badges.push("level2");
   if(quiet||FAST) return after>before;
+  if(REAL){ render(); return false; } // Echte App: keine Punkte-Einblendung (keine Gamification)
   $("rwPts").textContent = "+"+n; $("rwWhy").textContent = why;
   const r=$("reward"); r.classList.add("show"); clearTimeout(rewardTimer);
   rewardTimer = setTimeout(()=>r.classList.remove("show"), 2600);
@@ -1085,6 +1117,7 @@ function ring(pct){
   return `<svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="${r}" fill="none" stroke="var(--s2)" stroke-width="3"/><circle cx="22" cy="22" r="${r}" fill="none" stroke="var(--yellow)" stroke-width="3" stroke-linecap="round" stroke-dasharray="${(c*pct/100).toFixed(1)} ${c.toFixed(1)}" style="transition:stroke-dasharray .6s ease"/></svg>`;
 }
 function meHeader(){
+  if(REAL) return ""; // Echte App: keine Level-Anzeige (Nutzertest: Punkte kamen schlecht an)
   const p = levelProgress(S.xp);
   return `<div class="me">
     <div class="ring" role="img" aria-label="Level ${p.i+1}, ${p.pct} Prozent bis zum nächsten">${ring(p.pct)}<span>M</span></div>
@@ -1147,8 +1180,8 @@ function renderOnboarding(){
     <p class="lead">Dein stiller Wächter für den Arbeitsweg. Warnt vor Baustellen, bevor du losfährst.</p>
     <div class="feat"><span class="ic">${icon("route")}</span><div><b>Strecke einmal speichern</b><span>Arbeitsweg, Einkauf, Hobby. Die App schaut im Hintergrund.</span></div></div>
     <div class="feat"><span class="ic">${icon("bell")}</span><div><b>Nachricht vor der Abfahrt</b><span>Nur wenn wirklich etwas auf deinem Weg liegt.</span></div></div>
-    <div class="feat"><span class="ic">${icon("coin")}</span><div><b>Punkte fürs clevere Pendeln</b><span>Für Umfahrungen, die den Verkehr entlasten.</span></div></div>
-    <div style="margin-top:auto;padding-top:22px">
+    ${REAL ? `<div class="feat"><span class="ic">${icon("detour")}</span><div><b>Alternativen und Karte</b><span>Siehst du eine Baustelle, bekommst du eine schnellere Umfahrung vorgeschlagen.</span></div></div>` : `<div class="feat"><span class="ic">${icon("coin")}</span><div><b>Punkte fürs clevere Pendeln</b><span>Für Umfahrungen, die den Verkehr entlasten.</span></div></div>`}
+    <div class="cta">
       <button class="btn y" id="start">Los geht's</button>
       <p class="note" style="text-align:center">Web-App ohne App Store. Push-Erlaubnis folgt im nächsten Schritt.</p>
     </div></div>`;
@@ -1217,10 +1250,10 @@ function renderHome(){
   screen.innerHTML = `<h2 class="h1">Meine Strecken</h2><p class="lead">${S.routes.length?`${S.routes.length} Strecke${S.routes.length>1?"n":""} unter Beobachtung`:"Noch keine Strecke gespeichert"}</p>
     ${cards}
     <button class="add" id="add">${icon("plus")}Neue Strecke</button>
-    <div class="label"><span>Quests</span><span>${S.xp} BP gesammelt</span></div>
+    ${REAL?"":`<div class="label"><span>Quests</span><span>${S.xp} BP gesammelt</span></div>
     <div class="list">${quests.map(q=>`<div class="li ${q.done?"done":""}"><span class="ic">${icon(q.done?"check":q.ic)}</span>
       <div class="t">${q.t}${q.of>1?`<small>${q.p} von ${q.of}</small><div class="pbar"><i style="width:${q.p/q.of*100}%"></i></div>`:""}</div>
-      <span class="rw tnum">${q.done?"Erledigt":"+"+q.rw}</span></div>`).join("")}</div>`;
+      <span class="rw tnum">${q.done?"Erledigt":"+"+q.rw}</span></div>`).join("")}</div>`}`;
   screen.querySelectorAll(".route").forEach(b=>b.onclick=()=>go("detail",b.dataset.id));
   $("add").onclick=()=>go("new");
 }
@@ -1286,11 +1319,39 @@ function renderDetail(){
     ${!lastRun ? `<div class="hintbox">${icon("info")}Das Backend gleicht die Baustellen regelmässig ab.</div>` : hits.length ? `<div class="label" style="margin-top:6px"><span>Auf deiner Strecke</span><span>${hits.length}</span></div><div class="sites">${hits.map(siteRow).join("")}</div>` : `<div class="okbox">Keine Baustelle auf dieser Strecke.</div>`}
     <div class="label" id="cmp"><span>Routenvergleich</span><span>${cr?cr.candidates.length+" Routen":""}</span></div>
     ${cr ? compareCards(r,cr,L,ch) : ""}
-    <button class="btn ${cr?"ghost":""}" id="checkBtn">${icon("radar")}${cr?"Erneut prüfen":"Route jetzt prüfen"}</button>`;
+    ${r.kind==="real"?notifBox(r):""}
+    <button class="btn ${cr?"ghost":""}" id="checkBtn" style="margin-top:12px">${icon("radar")}${cr?"Erneut prüfen":"Route jetzt prüfen"}</button>`;
   screen.querySelectorAll(".seg button").forEach(b=>b.onclick=async()=>{ checkMode=b.dataset.m; if(checkRes[r.id]){ await compareRoutes(r, modeHour(r), false); } render(); });
   $("checkBtn").onclick = ()=>doCheck(r);
+  const nb=$("notifBtn"); if(nb) nb.onclick=()=>toggleNotify(r);
   const sa=$("showAlt"); if(sa) sa.onclick=()=>{ showAlt=!showAlt; render(); };
   screen.querySelectorAll("[data-take]").forEach(b=>b.onclick=()=>takeAlt(r, +b.dataset.take));
+}
+function notifBox(r){
+  const on=!!r.notify, denied=("Notification" in window)&&Notification.permission==="denied";
+  return `<button class="notifbox ${on?"on":""}" id="notifBtn" aria-pressed="${on}"><span class="ic">${icon("bell")}</span><span><b>Bei neuer Baustelle benachrichtigen: ${on?"An":"Aus"}</b><span>${denied?"Benachrichtigungen sind in den Browser-Einstellungen blockiert.":on?(r.pushState==="on"?"Aktiv. Du bekommst eine Nachricht, wenn eine neue Baustelle auf der Strecke auftaucht.":"Vorgemerkt. Sobald der Push-Versand läuft, meldet sich die App bei dir."):"Tippen, um für diese Strecke Benachrichtigungen vorzumerken."}</span></span></button>`;
+}
+/* Push: Die App meldet das Gerät beim Backend an (Web Push, VAPID). Läuft nur, wenn in config.js
+   VAPID_PUBLIC_KEY eingetragen ist und das Backend den Endpunkt /push_subscribe hat (siehe PUSH-BACKEND.md).
+   Ohne beides bleibt es bei «Vorgemerkt», es wird nichts gesendet. */
+const VAPID_KEY = (window.BRUM_CONFIG && window.BRUM_CONFIG.VAPID_PUBLIC_KEY) || "";
+const PUSH_READY = !!VAPID_KEY && "serviceWorker" in navigator && "PushManager" in window;
+function b64ToU8(b){ const p="=".repeat((4-b.length%4)%4), x=atob((b+p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(x,c=>c.charCodeAt(0)); }
+async function pushSync(){
+  // Meldet alle Strecken mit Benachrichtigung an. Bei Fehlern bleibt die Auswahl lokal erhalten.
+  if(!PUSH_READY || !("Notification" in window) || Notification.permission!=="granted") return "off";
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToU8(VAPID_KEY)});
+    const routes = S.routes.filter(x=>x.notify && x.kind==="real").map(x=>({id:x.id, name:x.name, time:x.time, days:x.days, line:(x.geom||[]).filter((_,i,a)=>i%Math.max(1,Math.floor(a.length/60))===0)}));
+    const res = await fetch(API_BASE + "/push_subscribe", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({device:deviceId(), subscription:sub.toJSON(), routes})});
+    return res.ok ? "on" : "pending";
+  }catch(e){ return "pending"; }
+}
+async function toggleNotify(r){
+  if(!r.notify && "Notification" in window && Notification.permission==="default"){ try{ await Notification.requestPermission(); }catch(e){} }
+  r.notify = !r.notify; saveLocal(); render();
+  const st = await pushSync(); if(st==="on" || st==="pending"){ r.pushState = st; saveLocal(); render(); }
 }
 function modeHour(r){ return checkMode==="now" ? TODAY.getHours()+TODAY.getMinutes()/60 : hourOf(r.time); }
 async function doCheck(r){
@@ -1324,7 +1385,7 @@ function candCard(c,cr,ch){
   const km = c.key==="main" ? `${c.km.toFixed(1)} km` : `${c.detourKm>=0?"+":""}${c.detourKm.toFixed(1)} km`;
   const sc=c.score;
   return `<div class="cand ${rec?"rec":""}">
-    <div class="hd"><h4>${name}</h4>${chosen?`<span class="chip on">Heute gewählt</span>`:rec?`<span class="chip rec">Empfohlen${c.key!=="main"?`, +${REWARD.reroute} BP`:""}</span>`:""}</div>
+    <div class="hd"><h4>${name}</h4>${chosen?`<span class="chip on">Heute gewählt</span>`:rec?`<span class="chip rec">Empfohlen${!REAL&&c.key!=="main"?`, +${REWARD.reroute} BP`:""}</span>`:""}</div>
     <div class="via">${esc(c.via)}</div>
     <div class="big"><b class="tnum">${c.min}<small>Min.</small></b><span>${extra}</span><span>${km}</span></div>
     <div class="foot">${c.sites.length?`${c.sites.length} Baustelle${c.sites.length>1?"n":""} auf dieser Route`:"Keine Baustelle auf dieser Route"}.</div>
@@ -1357,7 +1418,7 @@ function renderReport(){
   appbar.innerHTML = meHeader();
   reportDraft = reportDraft || {type:"Fahrbahn verengt"};
   const types=["Fahrbahn verengt","Strasse gesperrt","Verkehrsdienst","Ohne Behinderung"];
-  screen.innerHTML = `<h2 class="h1">Baustelle melden</h2><p class="lead">Für alle, die nach dir kommen. +${REWARD.report} BP</p>
+  screen.innerHTML = `<h2 class="h1">Baustelle melden</h2><p class="lead">Für alle, die nach dir kommen.${REAL?"":` +${REWARD.report} BP`}</p>
     <div class="hintbox">${icon("info")}Nur im Stillstand. Während der Fahrt ist Melden gesperrt.</div>
     <label class="f">Ort</label><div class="where">${icon("pin")}${REPORT_SPOT.where}</div>
     <label class="f">Was ist los?</label>
@@ -1381,24 +1442,24 @@ function sendReport(){
 function renderProfile(){
   appbar.innerHTML = meHeader();
   setTimeout(()=>{ const t=$("showTour"); if(t) t.onclick=()=>{ document.body.classList.remove("notour"); };
-    const rl=$("resetLocal"); if(rl) rl.onclick=()=>{ if(confirm("Alle Strecken, Meldungen und Punkte auf diesem Handy löschen?")) resetLocal(); }; },0);
+    const rl=$("resetLocal"); if(rl) rl.onclick=()=>{ if(confirm("Alle Strecken und Meldungen auf diesem Handy löschen?")) resetLocal(); }; },0);
   const p=levelProgress(S.xp);
   const main = S.routes[0] && checkRes[S.routes[0].id] ? checkRes[S.routes[0].id].main : null;
-  screen.innerHTML = `<h2 class="h1">Deine Bilanz</h2><p class="lead">${p.next?`Noch ${p.next.min-S.xp} BP bis ${p.next.name}`:"Höchstes Level erreicht"}</p>
-    <div class="stats">
+  screen.innerHTML = `<h2 class="h1">Deine Bilanz</h2><p class="lead">${REAL?"Was dir Brumdrumherum bisher gebracht hat":p.next?`Noch ${p.next.min-S.xp} BP bis ${p.next.name}`:"Höchstes Level erreicht"}</p>
+    <div class="stats"${REAL?` style="grid-template-columns:repeat(3,1fr)"`:""}>
       <div class="stat"><b class="tnum">${S.stats.savedMin}</b><span>Minuten gespart</span></div>
       <div class="stat"><b class="tnum">${S.stats.reroutes}</b><span>Umfahrungen</span></div>
       <div class="stat"><b class="tnum">${S.stats.reports}</b><span>Meldungen</span></div>
-      <div class="stat"><b class="tnum">${S.stats.streak}</b><span>Tage am Stück</span></div>
+      ${REAL?"":`<div class="stat"><b class="tnum">${S.stats.streak}</b><span>Tage am Stück</span></div>`}
     </div>
     ${S.stats.reroutes && main ? `<div class="impact">Heute ein Auto weniger auf der ${esc(main.via)} zur Spitzenzeit. <span>Dort bremsen ${main.sites.length} Baustelle${main.sites.length===1?"":"n"} den Verkehr.</span></div>`:""}
-    <div class="label"><span>Abzeichen</span><span>${S.badges.length} von ${Object.keys(BADGES).length}</span></div>
-    <div class="badges">${Object.entries(BADGES).map(([k,b])=>`<div class="badge ${S.badges.includes(k)?"":"locked"}"><div class="ic">${icon(b.ic)}</div><b>${b.name}</b><small>${S.badges.includes(k)?"Erhalten":b.how}</small></div>`).join("")}</div>
+    ${REAL?"":`<div class="label"><span>Abzeichen</span><span>${S.badges.length} von ${Object.keys(BADGES).length}</span></div>
+    <div class="badges">${Object.entries(BADGES).map(([k,b])=>`<div class="badge ${S.badges.includes(k)?"":"locked"}"><div class="ic">${icon(b.ic)}</div><b>${b.name}</b><small>${S.badges.includes(k)?"Erhalten":b.how}</small></div>`).join("")}</div>`}
     ${REAL ? `<a class="btn ghost" href="demo.html" style="margin-top:18px;text-decoration:none">${icon("route")}Demo-Story mit Max ansehen</a>
       <button class="btn ghost" id="resetLocal" style="margin-top:10px">Alle Daten auf diesem Handy löschen</button>
       <p class="note">Brumdrumherum speichert deine Strecken nur auf diesem Gerät. Kein Konto, keine Mail, kein Name.</p>`
       : `<button class="btn ghost tourbtn" id="showTour" style="margin-top:18px">${icon("route")}Story von A bis Z zeigen</button>`}
-    <p class="fine">Brum-Punkte haben im Prototyp keinen Geldwert. Einlösen bei Partnern ist eine Idee und noch nicht mit Partnern besprochen.</p>`;
+    ${REAL?"":`<p class="fine">Brum-Punkte haben im Prototyp keinen Geldwert. Einlösen bei Partnern ist eine Idee und noch nicht mit Partnern besprochen.</p>`}`;
 }
 
 /* ======================================================================

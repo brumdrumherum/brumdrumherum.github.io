@@ -6,6 +6,7 @@ Diese Datei beim Weiterarbeiten mit der KI immer mit hochladen.
 ## Version 1.0 – Sprint 1 (Stand 1.10.2026)
 
 ### App
+- **Beta ist live (9.11.2026):** `index.html` übernimmt alle Verbesserungen aus `beta.html` (Startseite, Ortssuche, Vorbereitung Push). Die echte App zeigt keine Punkte, Abzeichen, Quests oder Serien mehr (Nutzertest: Gamification kam schlecht an). Die Demo-Story behält sie. Gespeicherte Strecken bleiben erhalten.
 - **Demo-Story ergänzt:** neuer Schritt K «Nachtsperrungen bleiben still» (A1 Bethlehem–Brünnen, nur nachts), Backend-Ablauf wie er wirklich läuft (GitHub Actions für ASTRA, Xano für Stadt Bern), Zusammenfassung mit echten Zahlen und Erkenntnissen.
 - **Echte App statt Story:** `index.html` startet ohne Story, ohne simulierte Uhrzeit und ohne Beispieldaten. Erst Begrüssung, dann direkt «Neue Strecke» mit Adresssuche. Die Story mit Max bleibt als `demo.html` für Pitch, Showroom und Coaching.
 - **Speichern auf dem Handy:** Strecken, Meldungen und Punkte bleiben nach dem Neustart erhalten (nur auf diesem Gerät). Im Profil lassen sich alle Daten löschen.
