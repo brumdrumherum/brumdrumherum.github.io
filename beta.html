@@ -1442,19 +1442,19 @@ function sendReport(){
 function renderProfile(){
   appbar.innerHTML = meHeader();
   setTimeout(()=>{ const t=$("showTour"); if(t) t.onclick=()=>{ document.body.classList.remove("notour"); };
-    const rl=$("resetLocal"); if(rl) rl.onclick=()=>{ if(confirm("Alle Strecken, Meldungen und Punkte auf diesem Handy löschen?")) resetLocal(); }; },0);
+    const rl=$("resetLocal"); if(rl) rl.onclick=()=>{ if(confirm("Alle Strecken und Meldungen auf diesem Handy löschen?")) resetLocal(); }; },0);
   const p=levelProgress(S.xp);
   const main = S.routes[0] && checkRes[S.routes[0].id] ? checkRes[S.routes[0].id].main : null;
   screen.innerHTML = `<h2 class="h1">Deine Bilanz</h2><p class="lead">${REAL?"Was dir Brumdrumherum bisher gebracht hat":p.next?`Noch ${p.next.min-S.xp} BP bis ${p.next.name}`:"Höchstes Level erreicht"}</p>
-    <div class="stats">
+    <div class="stats"${REAL?` style="grid-template-columns:repeat(3,1fr)"`:""}>
       <div class="stat"><b class="tnum">${S.stats.savedMin}</b><span>Minuten gespart</span></div>
       <div class="stat"><b class="tnum">${S.stats.reroutes}</b><span>Umfahrungen</span></div>
       <div class="stat"><b class="tnum">${S.stats.reports}</b><span>Meldungen</span></div>
-      <div class="stat"><b class="tnum">${S.stats.streak}</b><span>Tage am Stück</span></div>
+      ${REAL?"":`<div class="stat"><b class="tnum">${S.stats.streak}</b><span>Tage am Stück</span></div>`}
     </div>
     ${S.stats.reroutes && main ? `<div class="impact">Heute ein Auto weniger auf der ${esc(main.via)} zur Spitzenzeit. <span>Dort bremsen ${main.sites.length} Baustelle${main.sites.length===1?"":"n"} den Verkehr.</span></div>`:""}
-    ${REAL?`<details style="margin-top:18px"><summary style="cursor:pointer;color:var(--muted)">Abzeichen ansehen (${S.badges.length} von ${Object.keys(BADGES).length})</summary>`:`<div class="label"><span>Abzeichen</span><span>${S.badges.length} von ${Object.keys(BADGES).length}</span></div>`}
-    <div class="badges">${Object.entries(BADGES).map(([k,b])=>`<div class="badge ${S.badges.includes(k)?"":"locked"}"><div class="ic">${icon(b.ic)}</div><b>${b.name}</b><small>${S.badges.includes(k)?"Erhalten":b.how}</small></div>`).join("")}</div>${REAL?"</details>":""}
+    ${REAL?"":`<div class="label"><span>Abzeichen</span><span>${S.badges.length} von ${Object.keys(BADGES).length}</span></div>
+    <div class="badges">${Object.entries(BADGES).map(([k,b])=>`<div class="badge ${S.badges.includes(k)?"":"locked"}"><div class="ic">${icon(b.ic)}</div><b>${b.name}</b><small>${S.badges.includes(k)?"Erhalten":b.how}</small></div>`).join("")}</div>`}
     ${REAL ? `<a class="btn ghost" href="demo.html" style="margin-top:18px;text-decoration:none">${icon("route")}Demo-Story mit Max ansehen</a>
       <button class="btn ghost" id="resetLocal" style="margin-top:10px">Alle Daten auf diesem Handy löschen</button>
       <p class="note">Brumdrumherum speichert deine Strecken nur auf diesem Gerät. Kein Konto, keine Mail, kein Name.</p>`
