@@ -1098,6 +1098,7 @@ function addXP(n, why, badge, quiet){
   const after = levelOf(S.xp);
   if(after>before && !S.badges.includes("level2")) S.badges.push("level2");
   if(quiet||FAST) return after>before;
+  if(REAL){ render(); return false; } // Echte App: keine Punkte-Einblendung (keine Gamification)
   $("rwPts").textContent = "+"+n; $("rwWhy").textContent = why;
   const r=$("reward"); r.classList.add("show"); clearTimeout(rewardTimer);
   rewardTimer = setTimeout(()=>r.classList.remove("show"), 2600);
@@ -1384,7 +1385,7 @@ function candCard(c,cr,ch){
   const km = c.key==="main" ? `${c.km.toFixed(1)} km` : `${c.detourKm>=0?"+":""}${c.detourKm.toFixed(1)} km`;
   const sc=c.score;
   return `<div class="cand ${rec?"rec":""}">
-    <div class="hd"><h4>${name}</h4>${chosen?`<span class="chip on">Heute gewählt</span>`:rec?`<span class="chip rec">Empfohlen${c.key!=="main"?`, +${REWARD.reroute} BP`:""}</span>`:""}</div>
+    <div class="hd"><h4>${name}</h4>${chosen?`<span class="chip on">Heute gewählt</span>`:rec?`<span class="chip rec">Empfohlen${!REAL&&c.key!=="main"?`, +${REWARD.reroute} BP`:""}</span>`:""}</div>
     <div class="via">${esc(c.via)}</div>
     <div class="big"><b class="tnum">${c.min}<small>Min.</small></b><span>${extra}</span><span>${km}</span></div>
     <div class="foot">${c.sites.length?`${c.sites.length} Baustelle${c.sites.length>1?"n":""} auf dieser Route`:"Keine Baustelle auf dieser Route"}.</div>
@@ -1417,7 +1418,7 @@ function renderReport(){
   appbar.innerHTML = meHeader();
   reportDraft = reportDraft || {type:"Fahrbahn verengt"};
   const types=["Fahrbahn verengt","Strasse gesperrt","Verkehrsdienst","Ohne Behinderung"];
-  screen.innerHTML = `<h2 class="h1">Baustelle melden</h2><p class="lead">Für alle, die nach dir kommen. +${REWARD.report} BP</p>
+  screen.innerHTML = `<h2 class="h1">Baustelle melden</h2><p class="lead">Für alle, die nach dir kommen.${REAL?"":` +${REWARD.report} BP`}</p>
     <div class="hintbox">${icon("info")}Nur im Stillstand. Während der Fahrt ist Melden gesperrt.</div>
     <label class="f">Ort</label><div class="where">${icon("pin")}${REPORT_SPOT.where}</div>
     <label class="f">Was ist los?</label>
