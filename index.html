@@ -1323,7 +1323,13 @@ function renderDetail(){
     <div class="label" id="cmp"><span>Routenvergleich</span><span>${cr?cr.candidates.length+" Routen":""}</span></div>
     ${cr ? compareCards(r,cr,L,ch) : ""}
     ${r.kind==="real"?notifBox(r):""}
-    <button class="btn ${cr?"ghost":""}" id="checkBtn" style="margin-top:12px">${icon("radar")}${cr?"Erneut prüfen":"Route jetzt prüfen"}</button>`;
+    <button class="btn ${cr?"ghost":""}" id="checkBtn" style="margin-top:12px">${icon("radar")}${cr?"Erneut prüfen":"Route jetzt prüfen"}</button>
+    <button class="btn ghost" id="delBtn" style="margin-top:10px;color:#c0392b;border-color:#c0392b">Strecke löschen</button>`;
+  $("delBtn").onclick=()=>{
+    if(!confirm(`Strecke «${r.name}» wirklich löschen?`)) return;
+    S.routes = S.routes.filter(x=>x.id!==r.id); delete checkRes[r.id]; delete matches[r.id];
+    saveLocal(); if(r.notify) pushSync(); go("home");
+  };
   screen.querySelectorAll(".seg button").forEach(b=>b.onclick=async()=>{ checkMode=b.dataset.m; if(checkRes[r.id]){ await compareRoutes(r, modeHour(r), false); } render(); });
   $("checkBtn").onclick = ()=>doCheck(r);
   const nb=$("notifBtn"); if(nb) nb.onclick=()=>toggleNotify(r);
