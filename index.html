@@ -980,6 +980,10 @@ function fromTo(r){ return r.kind === "real" ? `${esc(shortLabel(r.fromL))} → 
 
 /* --- Neue Strecke mit echter Adresssuche --- */
 let rd = null, geoTimer = null;
+const EXAMPLES = [
+  {name:"Wankdorf → Shoppyland", fromQ:"Papiermühlestrasse 71, 3014 Bern", toQ:"Industriestrasse 10, 3321 Schönbühl"},
+  {name:"Bremgarten → Wohlen", fromQ:"Kalchackerstrasse 20, 3047 Bremgarten bei Bern", toQ:"Hauptstrasse 26, 3033 Wohlen bei Bern"}
+];
 function renderNewReal(){
   rd = rd || {name:"Arbeitsweg", fromQ:"", toQ:"", from:null, to:null, time:"07:40", days:[1,2,3,4,5], res:null, err:"", busy:false};
   appbar.innerHTML = `${S.routes.length?`<button class="back" id="back">${icon("back")}Abbrechen</button>`:""}<h2 class="h1">Neue Strecke</h2><p class="lead" style="margin:0">Adressen eingeben, die Route wird berechnet</p>`;
@@ -988,6 +992,8 @@ function renderNewReal(){
     <div class="addr"><input id="a_${k}" type="text" autocomplete="off" placeholder="Ort, Adresse oder Ziel, z.B. Panoramacenter Thun" value="${esc(q)}">${ok?`<span class="okmark">${icon("check")}</span>`:""}<div class="sugg" id="s_${k}" role="listbox"></div></div>`;
   const r0 = rd.res && rd.res[0];
   screen.innerHTML = `
+    <div class="label"><span>Beispielstrecken</span></div>
+    ${EXAMPLES.map((x,i)=>`<button type="button" class="btn ghost" data-ex="${i}" style="margin-bottom:8px;text-align:left"${rd.busy?" disabled":""}>${icon("route")}<span>${esc(x.name)}<br><small style="opacity:.7">${esc(x.fromQ)} → ${esc(x.toQ)}</small></span></button>`).join("")}
     <label class="f" for="nName">Name</label><input id="nName" type="text" value="${esc(rd.name)}">
     ${field("from","Start",rd.fromQ,!!rd.from)}
     ${field("to","Ziel",rd.toQ,!!rd.to)}
@@ -1002,6 +1008,17 @@ function renderNewReal(){
       <button class="btn y" id="nSave">Strecke überwachen</button>`:""}
     <p class="note">Adresssuche und Route von Mapbox. Gespeichert wird nur die Linie der Strecke.</p>`;
   $("nName").oninput = e => { rd.name = e.target.value; };
+  screen.querySelectorAll("[data-ex]").forEach(b => b.onclick = async () => {
+    const x = EXAMPLES[+b.dataset.ex];
+    rd.name = x.name; rd.fromQ = x.fromQ; rd.toQ = x.toQ; rd.from = rd.to = rd.res = null; rd.err = ""; rd.busy = true; renderNewReal();
+    try{
+      const [fa, ta] = await Promise.all([geocodeAddr(x.fromQ), geocodeAddr(x.toQ)]);
+      if(!fa[0] || !ta[0]) throw new Error("Adresse nicht gefunden");
+      rd.from = fa[0]; rd.to = ta[0]; rd.fromQ = rd.from.label; rd.toQ = rd.to.label;
+      rd.res = await directions(rd.from, rd.to);
+    }catch(e){ rd.res = null; rd.err = "Beispielstrecke konnte nicht geladen werden. Prüfe die Internetverbindung."; }
+    rd.busy = false; renderNewReal();
+  });
   ["from","to"].forEach(k => {
     const inp = $("a_"+k), box = $("s_"+k);
     inp.oninput = () => {
