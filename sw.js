@@ -2,7 +2,7 @@
 // Strategie: Seiten (HTML) immer zuerst frisch aus dem Netz, nur offline aus dem Speicher.
 // So zeigt das Handy nach einem Update sofort die neue Version.
 // Bei jeder neuen Version die Nummer erhöhen (z.B. 1.0.8, 2.0.0, ...).
-const CACHE = "brumdrumherum-1.0.8"; // Version 1.0 (Sprint 1), interner Zwischenstand 8
+const CACHE = "brumdrumherum-1.0.9"; // Version 1.0 (Sprint 1), interner Zwischenstand 9
 const FILES = ["./", "./index.html", "./demo.html", "./beta.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {

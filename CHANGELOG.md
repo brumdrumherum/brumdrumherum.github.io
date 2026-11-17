@@ -6,6 +6,7 @@ Diese Datei beim Weiterarbeiten mit der KI immer mit hochladen.
 ## Version 1.0 – Sprint 1 (Stand 1.10.2026)
 
 ### App
+- **Beispielstrecken mit Namen (17.11.2026):** «Wankdorf → Shoppyland» heisst jetzt «Arbeitsweg Fiona». Neu dazu: «Fussballtraining Tom» (Wabern → Wankdorf) und «Einkaufen Sabrina» (Belp → Westside). Bestehende Installationen bekommen Umbenennung und neue Strecken einmalig, gelöschte kommen nicht zurück.
 - **Beta ist live (9.11.2026):** `index.html` übernimmt alle Verbesserungen aus `beta.html` (Startseite, Ortssuche, Vorbereitung Push). Die echte App zeigt keine Punkte, Abzeichen, Quests oder Serien mehr (Nutzertest: Gamification kam schlecht an). Gespeicherte Strecken bleiben erhalten.
 - **Demo-Story ohne Gamification (9.11.2026):** Auch `demo.html` zeigt keine Punkte mehr (User-Test, 8 Personen: Punkte und Abzeichen 2.1 von 5, 0 von 8 als wertvollstes Feature). Schritte C, H, J neu geschrieben, Zusammenfassung mit Testergebnissen. Ein Schalter `GAMIFY` steuert das für App und Demo. Die Karte in der Demo nutzt immer die Story-Daten, damit Schritt K die A1-Nachtsperrung zeigt. Profil: drei Kennzahlen nebeneinander.
 - **Demo-Story ergänzt:** neuer Schritt K «Nachtsperrungen bleiben still» (A1 Bethlehem–Brünnen, nur nachts), Backend-Ablauf wie er wirklich läuft (GitHub Actions für ASTRA, Xano für Stadt Bern), Zusammenfassung mit echten Zahlen und Erkenntnissen.
