@@ -981,36 +981,41 @@ function fromTo(r){ return r.kind === "real" ? `${esc(shortLabel(r.fromL))} → 
 /* --- Neue Strecke mit echter Adresssuche --- */
 let rd = null, geoTimer = null;
 const EXAMPLES = [
-  {key:"arbeit", oldName:"Wankdorf → Shoppyland", name:"Arbeitsweg Fiona", fromQ:"Papiermühlestrasse 71, 3014 Bern", toQ:"Industriestrasse 10, 3321 Schönbühl"},
-  {key:"bremgarten", oldName:"Bremgarten → Wohlen", name:"Bremgarten → Wohlen", fromQ:"Kalchackerstrasse 20, 3047 Bremgarten bei Bern", toQ:"Hauptstrasse 26, 3033 Wohlen bei Bern"},
+  {key:"arbeit", name:"Arbeitsweg Fiona", fromQ:"Papiermühlestrasse 71, 3014 Bern", toQ:"Industriestrasse 10, 3321 Schönbühl"},
+  {key:"bremgarten", name:"Bremgarten → Wohlen", fromQ:"Kalchackerstrasse 20, 3047 Bremgarten bei Bern", toQ:"Hauptstrasse 26, 3033 Wohlen bei Bern"},
   {key:"fussball", name:"Fussballtraining Tom", fromQ:"Kirchstrasse 10, 3084 Wabern", toQ:"Allmendstrasse 22, 3014 Bern", time:"17:30", days:[2,4]},
   {key:"einkaufen", name:"Einkaufen Sabrina", fromQ:"Bahnhofstrasse 20, 3123 Belp", toQ:"Riedbachstrasse 100, 3027 Bern", time:"16:30", days:[6]}
 ];
+/* Alte Installationen: Beispiele, die schon unter dem alten Namen gespeichert sind (einmalige Umbenennung). */
+const LEGACY_SEEDS = {arbeit:"Wankdorf → Shoppyland", bremgarten:"Bremgarten → Wohlen"};
 /* Beim ersten Start landen die Beispielstrecken direkt unter «Meine Strecken».
-   Wer sie löscht, bekommt sie nicht wieder (Merker S.seedKeys). Ältere Installationen
-   (S.seeded) bekommen die neuen Namen und die neuen Beispiele einmalig nachgeliefert. */
+   Wer sie löscht, bekommt sie nicht wieder (Merker S.seedKeys). */
 async function seedExamples(){
   if(!S.seedKeys){
-    S.seedKeys = S.seeded ? EXAMPLES.filter(x=>x.oldName).map(x=>x.key) : [];
-    if(S.seeded) EXAMPLES.forEach(x=>{ const r = S.routes.find(q=>q.name===x.oldName); if(r) r.name = x.name; });
-    saveLocal(); if(S.seeded) render();
+    const old = S.seeded; // Altstand: nur ein Merker, ob die ersten zwei Beispiele angelegt wurden
+    S.seedKeys = old ? Object.keys(LEGACY_SEEDS) : [];
+    delete S.seeded;
+    if(old){
+      EXAMPLES.forEach(x=>{ const r = S.routes.find(q=>q.name===LEGACY_SEEDS[x.key]); if(r) r.name = x.name; });
+      render();
+    }
+    saveLocal();
   }
   const todo = EXAMPLES.filter(x=>!S.seedKeys.includes(x.key));
   if(!todo.length) return;
   try{
-    const made = [];
-    for(const x of todo){
+    const res = await Promise.allSettled(todo.map(async x=>{
       const [fa, ta] = await Promise.all([geocodeAddr(x.fromQ), geocodeAddr(x.toQ)]);
       if(!fa[0] || !ta[0]) throw new Error("Adresse nicht gefunden");
       const [main, ...alts] = await directions(fa[0], ta[0]);
-      made.push({id:"r"+(S.nextId++), kind:"real", name:x.name, fromL:fa[0].label, toL:ta[0].label,
+      return {id:"r"+(S.nextId++), kind:"real", name:x.name, fromL:fa[0].label, toL:ta[0].label,
         from:{lat:fa[0].lat, lon:fa[0].lon}, to:{lat:ta[0].lat, lon:ta[0].lon}, time:x.time||"07:40", days:x.days||[1,2,3,4,5], on:true,
-        geom:main.pts, via:main.via, min:main.min, km:main.km, alts, _k:x.key});
-    }
-    made.forEach(m=>{ S.seedKeys.push(m._k); delete m._k; });
-    S.routes.push(...made); S.seeded = true;
-    ensureData(); matches = match().res; render();
-  }catch(e){ /* kein Netz oder kein Token: beim nächsten Start nochmals versuchen */ }
+        geom:main.pts, via:main.via, min:main.min, km:main.km, alts};
+    }));
+    // Gelungene Beispiele behalten, nur die fehlgeschlagenen beim nächsten Start wiederholen
+    res.forEach((p,i)=>{ if(p.status==="fulfilled"){ S.seedKeys.push(todo[i].key); S.routes.push(p.value); } });
+    saveLocal(); ensureData(); matches = match().res; render();
+  }catch(e){ /* unerwarteter Fehler: beim nächsten Start nochmals versuchen */ }
 }
 function renderNewReal(){
   rd = rd || {name:"Arbeitsweg", fromQ:"", toQ:"", from:null, to:null, time:"07:40", days:[1,2,3,4,5], res:null, err:"", busy:false};
@@ -1693,7 +1698,7 @@ if(REAL){
   document.body.classList.add("notour","real");
   const saved = loadLocal(); if(saved) S = saved; deviceId();
   lastRun = new Date(); // Abgleich mit Live-Daten ist sofort möglich
-  S.onboarded = true; go("home"); // Start direkt auf «Meine Strecken», ohne Begrüssung
+  go("home"); // Start direkt auf «Meine Strecken», ohne Begrüssung
   seedExamples();
 } else {
   gotoStep(0,true);
