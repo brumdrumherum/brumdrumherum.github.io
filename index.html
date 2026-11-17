@@ -1693,7 +1693,7 @@ if(REAL){
   document.body.classList.add("notour","real");
   const saved = loadLocal(); if(saved) S = saved; deviceId();
   lastRun = new Date(); // Abgleich mit Live-Daten ist sofort möglich
-  go(S.onboarded ? "home" : "onboarding");
+  S.onboarded = true; go("home"); // Start direkt auf «Meine Strecken», ohne Begrüssung
   seedExamples();
 } else {
   gotoStep(0,true);
