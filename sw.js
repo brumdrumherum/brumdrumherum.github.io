@@ -2,7 +2,7 @@
 // Strategie: Seiten (HTML) immer zuerst frisch aus dem Netz, nur offline aus dem Speicher.
 // So zeigt das Handy nach einem Update sofort die neue Version.
 // Bei jeder neuen Version die Nummer erhöhen (z.B. 1.0.8, 2.0.0, ...).
-const CACHE = "brumdrumherum-1.0.11"; // Version 1.0 (Sprint 1), interner Zwischenstand 11
+const CACHE = "brumdrumherum-1.0.12"; // Version 1.0 (Sprint 1), interner Zwischenstand 12
 const FILES = ["./", "./index.html", "./demo.html", "./beta.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
@@ -35,10 +35,10 @@ self.addEventListener("fetch", e => {
 // Push (Beta): zeigt die Nachricht des Backends an und öffnet beim Antippen die Beta-App.
 self.addEventListener("push", e => {
   let d = {}; try{ d = e.data ? e.data.json() : {}; }catch(_){ d = {body: e.data && e.data.text()}; }
-  e.waitUntil(self.registration.showNotification(d.title || "Brumdrumherum", { body: d.body || "Neue Baustelle auf deiner Strecke.", icon: "icons/icon-192.png", badge: "icons/icon-192.png", data: { url: d.url || "beta.html" } }));
+  e.waitUntil(self.registration.showNotification(d.title || "Brumdrumherum", { body: d.body || "Neue Baustelle auf deiner Strecke.", icon: "icons/icon-192.png", badge: "icons/icon-192.png", data: { url: d.url || "index.html" } }));
 });
 self.addEventListener("notificationclick", e => {
   e.notification.close();
-  const url = new URL((e.notification.data && e.notification.data.url) || "beta.html", self.registration.scope).href;
+  const url = new URL((e.notification.data && e.notification.data.url) || "index.html", self.registration.scope).href;
   e.waitUntil(clients.matchAll({type:"window", includeUncontrolled:true}).then(list => { for(const c of list){ if(c.url===url && "focus" in c) return c.focus(); } return clients.openWindow(url); }));
 });

@@ -6,6 +6,7 @@ Diese Datei beim Weiterarbeiten mit der KI immer mit hochladen.
 ## Version 1.0 – Sprint 1 (Stand 1.10.2026)
 
 ### App
+- **beta.html leitet um (17.11.2026):** `beta.html` leitet auf die Hauptseite weiter, damit niemand mehr die alte Beta-Version sieht. Push-Klick öffnet `index.html`.
 - **Beispielstrecken schneller laden (17.11.2026):** Die Beispiele werden parallel geladen, gelungene bleiben erhalten, auch wenn eine andere fehlschlägt. Interner Merker `seeded` entfällt zugunsten von `seedKeys`.
 - **Start direkt auf «Meine Strecken» (17.11.2026):** Die Begrüssung entfällt, beim Öffnen der Seite erscheinen sofort die Strecken.
 - **Beispielstrecken mit Namen (17.11.2026):** «Wankdorf → Shoppyland» heisst jetzt «Arbeitsweg Fiona». Neu dazu: «Fussballtraining Tom» (Wabern → Wankdorf) und «Einkaufen Sabrina» (Belp → Westside). Bestehende Installationen bekommen Umbenennung und neue Strecken einmalig, gelöschte kommen nicht zurück.
