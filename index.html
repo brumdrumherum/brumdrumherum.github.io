@@ -997,7 +997,7 @@ async function seedExamples(){
     delete S.seeded;
     if(old){
       EXAMPLES.forEach(x=>{ const r = S.routes.find(q=>q.name===LEGACY_SEEDS[x.key]); if(r) r.name = x.name; });
-      render();
+      if(view.name==="home") render();
     }
     saveLocal();
   }
@@ -1014,7 +1014,7 @@ async function seedExamples(){
     }));
     // Gelungene Beispiele behalten, nur die fehlgeschlagenen beim nächsten Start wiederholen
     res.forEach((p,i)=>{ if(p.status==="fulfilled"){ S.seedKeys.push(todo[i].key); S.routes.push(p.value); } });
-    saveLocal(); ensureData(); matches = match().res; render();
+    saveLocal(); ensureData(); matches = match().res; if(view.name==="home") render();
   }catch(e){ /* unerwarteter Fehler: beim nächsten Start nochmals versuchen */ }
 }
 function renderNewReal(){
@@ -1190,7 +1190,9 @@ function render(){
    zufällige, anonyme Nummer (für die spätere Anmeldung bei Xano für Push-Nachrichten). */
 const STORE_KEY = "brum:state:1", DEVICE_KEY = "brum:device";
 function saveLocal(){ if(!REAL) return; try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){} }
-function loadLocal(){ try{ const x = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); if(x && Array.isArray(x.routes)) return Object.assign(FRESH(), x); }catch(e){} return null; }
+/* Daten der früheren Beta (beta.html) einmalig übernehmen, damit Strecken und Geräte-ID erhalten bleiben. */
+function migrateBeta(){ try{ for(const [from,to] of [["brum-beta:state:1",STORE_KEY],["brum-beta:device",DEVICE_KEY]]){ const v = localStorage.getItem(from); if(v && !localStorage.getItem(to)) localStorage.setItem(to, v); } }catch(e){} }
+function loadLocal(){ migrateBeta(); try{ const x = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); if(x && Array.isArray(x.routes)) return Object.assign(FRESH(), x); }catch(e){} return null; }
 function deviceId(){ try{ let id = localStorage.getItem(DEVICE_KEY); if(!id){ id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)); localStorage.setItem(DEVICE_KEY, id); } return id; }catch(e){ return null; } }
 function resetLocal(){ try{ localStorage.removeItem(STORE_KEY); localStorage.removeItem(DEVICE_KEY); }catch(e){} location.reload(); }
 function daysText(d){ return d.length===5 && [1,2,3,4,5].every(x=>d.includes(x)) ? "Mo–Fr" : d.slice().sort().map(x=>DAYN[x]).join(", "); }
@@ -1361,7 +1363,13 @@ function renderDetail(){
     ${cr ? compareCards(r,cr,L,ch) : ""}
     ${r.kind==="real"?notifBox(r):""}
     <button class="btn ${cr?"ghost":""}" id="checkBtn" style="margin-top:12px">${icon("radar")}${cr?"Erneut prüfen":"Route jetzt prüfen"}</button>
+    <button class="btn ghost" id="renBtn" style="margin-top:10px">Umbenennen</button>
     <button class="btn ghost" id="delBtn" style="margin-top:10px;color:#c0392b;border-color:#c0392b">Strecke löschen</button>`;
+  $("renBtn").onclick=()=>{
+    const n = prompt("Neuer Name für die Strecke:", r.name);
+    if(n===null || !n.trim() || n.trim()===r.name) return;
+    r.name = n.trim().slice(0,60); saveLocal(); if(r.notify) pushSync(); render();
+  };
   $("delBtn").onclick=()=>{
     if(!confirm(`Strecke «${r.name}» wirklich löschen?`)) return;
     S.routes = S.routes.filter(x=>x.id!==r.id); delete checkRes[r.id]; delete matches[r.id];
