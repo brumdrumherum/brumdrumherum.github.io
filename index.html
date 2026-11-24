@@ -793,8 +793,8 @@ const screen = $("screen"), appbar = $("appbar"), logEl = $("log");
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtD = s => new Date(s+"T00:00:00").toLocaleDateString("de-CH",{day:"numeric",month:"numeric"});
 const DAYN = ["So","Mo","Di","Mi","Do","Fr","Sa"];
-const srcLabel = {astra:"ASTRA", stadt_bern:"Stadt Bern", crowd:"Community"};
-const srcCls = {astra:"astra", stadt_bern:"bern", crowd:"crowd"};
+const srcLabel = {astra:"ASTRA", stadt_bern:"Stadt Bern", tba_be:"Kanton Bern", crowd:"Community"};
+const srcCls = {astra:"astra", stadt_bern:"bern", tba_be:"bern", crowd:"crowd"};
 const reduce = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const wait = ms => new Promise(r=>setTimeout(r, (FAST||reduce())?0:ms));
 const LOG_PLACEHOLDER = `<span class="dim">Hier erscheint, was im Backend passiert, sobald die Story dort ankommt.</span>`;
@@ -966,6 +966,29 @@ async function loadLiveIncidents(){
     liveStatus = "fehler";
     log(`<span class="dim">Live-Baustellen nicht erreichbar (${esc(String(e.message||e))}). Die App nutzt die Beispieldaten.</span>`);
     renderSrcTbl();
+  }
+}
+
+/* Baustellen Kanton Bern (Tiefbauamt): statische Datei tba-be.json, erzeugt mit scripts/tba-be.mjs.
+   Fehler hier lassen die Xano-Daten unberührt. */
+async function loadTbaIncidents(){
+  try{
+    const r = await fetch("tba-be.json");
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    const add = data.items.map(x => {
+      const ring = ringOf(x.geometry);
+      const pts = ring ? densify(ring.map(c => [c[1], c[0]]), 20) : null;
+      return {id: "TBA-" + x.external_id, quelle: "tba_be", titel: x.title, start: x.start_date, ende: x.end_date,
+        lat: x.lat, lon: x.lon, pts, bb: pts ? bbox(pts, 0) : null, live: true, aktiv: isActiveNow(x.start_date, x.end_date),
+        night_only: false, daily_from: null, daily_to: null};
+    });
+    liveIncidents = liveIncidents.filter(i => i.quelle !== "tba_be").concat(add);
+    log(`<span class="ok">Kanton Bern: ${add.length} Baustellen des Tiefbauamts geladen (${add.filter(i=>i.aktiv).length} aktiv oder in 7 Tagen)</span>`);
+    if(lastRun) matches = match().res;
+    render(); renderSrcTbl();
+  }catch(e){
+    log(`<span class="dim">Baustellen Kanton Bern nicht geladen (${esc(String(e.message||e))}).</span>`);
   }
 }
 
@@ -1397,7 +1420,7 @@ async function pushSync(){
   try{
     const reg = await navigator.serviceWorker.ready;
     const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToU8(VAPID_KEY)});
-    const routes = S.routes.filter(x=>x.notify && x.kind==="real").map(x=>({id:x.id, name:x.name, time:x.time, days:x.days, line:(x.geom||[]).filter((_,i,a)=>i%Math.max(1,Math.floor(a.length/60))===0)}));
+    const routes = S.routes.filter(x=>x.notify && x.kind==="real").map(x=>({id:x.id, time:x.time, days:x.days, line:(x.geom||[]).filter((_,i,a)=>i%Math.max(1,Math.floor(a.length/60))===0)}));
     const res = await fetch(API_BASE + "/push_subscribe", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({device:deviceId(), subscription:sub.toJSON(), routes})});
     return res.ok ? "on" : "pending";
   }catch(e){ return "pending"; }
@@ -1459,6 +1482,7 @@ function renderMapScreen(){
     <div class="list">
       <div class="li"><span class="ic src astra">${icon("cone")}</span><span class="t">ASTRA<small>Autobahnen und Zubringer${act.some(i=>i.quelle==="astra"&&i.night_only)?`, davon ${act.filter(i=>i.quelle==="astra"&&i.night_only).length} nur nachts`:""}</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="astra").length}</span></div>
       <div class="li"><span class="ic src bern">${icon("cone")}</span><span class="t">Stadt Bern<small>Gemeindestrassen, KOER</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="stadt_bern").length}</span></div>
+      <div class="li"><span class="ic src bern">${icon("cone")}</span><span class="t">Kanton Bern<small>Kantonsstrassen, Tiefbauamt</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="tba_be").length}</span></div>
       <div class="li"><span class="ic src crowd">${icon("cone")}</span><span class="t">Community<small>nicht verifiziert</small></span><span class="rw tnum">${S.reports.length}</span></div>
     </div>
     ${act.filter(i=>i.quelle==="astra").length ? `<div class="label"><span>ASTRA-Meldungen</span><span>${act.filter(i=>i.quelle==="astra").length}</span></div>
@@ -1691,7 +1715,8 @@ function tourHook(action){
 /* ---------- Datenquellen-Tabelle ---------- */
 function renderSrcTbl(){ $("srcTbl").innerHTML = [
   `<tr><td><strong>ASTRA Baustellen</strong><br><span class="no">opentransportdata.swiss, DATEX II</span></td><td>Baustellen National- und Kantonsstrassen</td><td class="no">${liveStatus==="ok"?`live über GitHub Actions und Xano: ${liveIncidents.filter(i=>i.quelle==="astra").length} Meldungen Region Bern, verortet über Autobahnanschlüsse`:"Beispieleinträge in der Story"}</td></tr>`,
-  `<tr><td><strong>Stadt Bern KOER</strong><br><span class="no">ArcGIS REST, GeoJSON, LV95</span></td><td>Kommunale Baustellen</td><td class="no">${liveStatus==="ok"?`live über Xano: ${liveIncidents.filter(i=>i.quelle==="stadt_bern").length} echte Baustellen`:liveStatus==="lädt"?"wird geladen …":"nicht erreichbar, Beispieleinträge"}</td></tr>`
+  `<tr><td><strong>Stadt Bern KOER</strong><br><span class="no">ArcGIS REST, GeoJSON, LV95</span></td><td>Kommunale Baustellen</td><td class="no">${liveStatus==="ok"?`live über Xano: ${liveIncidents.filter(i=>i.quelle==="stadt_bern").length} echte Baustellen`:liveStatus==="lädt"?"wird geladen …":"nicht erreichbar, Beispieleinträge"}</td></tr>`,
+  `<tr><td><strong>Kanton Bern TBA</strong><br><span class="no">Tiefbauamt, GeoJSON, LV95</span></td><td>Baustellen Kantonsstrassen</td><td class="no">${liveIncidents.some(i=>i.quelle==="tba_be")?`Export vom 12.11.2026: ${liveIncidents.filter(i=>i.quelle==="tba_be").length} Baustellen, statische Datei`:"nicht geladen"}</td></tr>`
   ,`<tr><td><strong>Mapbox</strong><br><span class="no">Karte, Adresssuche, Routing mit Alternativen</span></td><td>Echte Strassen und Routen</td><td class="no">${MB_ON?"aktiv (Token eingetragen)":"Demo-Modus: Token noch nicht eingetragen"}</td></tr>`
 ].join(""); }
 renderSrcTbl();
@@ -1711,7 +1736,8 @@ if(REAL){
 } else {
   gotoStep(0,true);
 }
-loadLiveIncidents();
+/* Reihenfolge: erst Xano (ersetzt die Liste), dann Kanton Bern (wird angehängt). */
+loadLiveIncidents().then(() => { if(REAL) loadTbaIncidents(); });
 })();
 </script>
 <script>

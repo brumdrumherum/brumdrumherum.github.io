@@ -2,7 +2,7 @@
 // Strategie: Seiten (HTML) immer zuerst frisch aus dem Netz, nur offline aus dem Speicher.
 // So zeigt das Handy nach einem Update sofort die neue Version.
 // Bei jeder neuen Version die Nummer erhöhen (z.B. 1.0.8, 2.0.0, ...).
-const CACHE = "brumdrumherum-1.0.13"; // Version 1.0 (Sprint 1), interner Zwischenstand 13
+const CACHE = "brumdrumherum-1.0.14"; // Version 1.0 (Sprint 1), interner Zwischenstand 14
 const FILES = ["./", "./index.html", "./demo.html", "./beta.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
@@ -18,7 +18,7 @@ self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
   // Immer live laden, nie zwischenspeichern: Mapbox, Xano (Baustellen) und die Einstellungen.
   if (url.hostname.endsWith("mapbox.com") || url.hostname.endsWith("xano.io") || url.pathname.endsWith("/config.js")) return;
-  const isPage = e.request.mode === "navigate" || url.pathname.endsWith(".html") || url.pathname.endsWith("/sw.js");
+  const isPage = e.request.mode === "navigate" || url.pathname.endsWith(".html") || url.pathname.endsWith("/sw.js") || url.pathname.endsWith("/tba-be.json");
   if (isPage) {
     // Netz zuerst, Speicher nur als Rückfall (offline)
     e.respondWith(fetch(new Request(e.request, { cache: "no-store" })).then(res => {
