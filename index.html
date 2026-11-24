@@ -696,14 +696,42 @@ function incidentPool(live){ if(REAL) return liveIncidents; return (live && live
 // Flächen der Stadt Bern, deshalb gilt dort ein Korridor von 250 m statt 100 m.
 const ASTRA_THRESHOLD_M = 250;
 const thresholdFor = inc => inc.quelle === "astra" ? ASTRA_THRESHOLD_M : THRESHOLD_M;
+// Kanton Bern: Baustellen sind Linien entlang des Abschnitts. Sie zählen nur, wenn mindestens 50 m ihrer Linie
+// (bei kürzeren Baustellen die Hälfte der Länge) im Korridor von 25 m um die Strecke liegen. So fallen Baustellen
+// auf Querstrassen weg, die die Strecke nur an der Kreuzung berühren.
+const TBA_CORRIDOR_M = 25, TBA_MIN_OVERLAP_M = 50, TBA_STEP_M = 10;
+function distToSeg(p, a, b){
+  const k = Math.cos(p[0]*Math.PI/180), m = 111320;
+  const ax=(a[1]-p[1])*k*m, ay=(a[0]-p[0])*m, bx=(b[1]-p[1])*k*m, by=(b[0]-p[0])*m;
+  const dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
+  const t = l2 ? Math.max(0, Math.min(1, -(ax*dx+ay*dy)/l2)) : 0;
+  return Math.hypot(ax+t*dx, ay+t*dy);
+}
+function tbaMatch(route, inc){
+  let near = Infinity, inside = 0;
+  for(const q of inc.pts){
+    let d = Infinity;
+    for(let i=0;i<route.length-1;i++){ const x = distToSeg(q, route[i], route[i+1]); if(x<d) d=x; }
+    if(d<near) near=d;
+    if(d<=TBA_CORRIDOR_M) inside++;
+  }
+  const overlap = inside*TBA_STEP_M, need = Math.min(TBA_MIN_OVERLAP_M, inc.lenM/2);
+  return {dist:near, hit: inside>0 && overlap>=need};
+}
+// Einheitlicher Abgleich: Kanton über Überlappung der Linie, alle anderen über den Abstand.
+function incHit(dense, inc){
+  if(inc.quelle === "tba_be" && inc.pts){ const r = tbaMatch(dense, inc); return {hit:r.hit, dist:r.dist}; }
+  const best = incDist(dense, inc);
+  return {hit: best<=thresholdFor(inc), dist:best};
+}
 // Nachtsperrungen (z.B. 20:00–05:00) betreffen Pendelnde nicht und lösen keine Warnung aus.
 const warns = inc => inc.aktiv && !inc.night_only;
 function sitesOn(pts, live){
   const dense=densify(pts,20), bb=bbox(pts,0.004), out=[];
   for(const inc of incidentPool(live)){
     if(!warns(inc) || !incNearBox(inc, bb)) continue;
-    const best = incDist(dense, inc);
-    if(best<=thresholdFor(inc)) out.push({inc,dist:Math.round(best)});
+    const h = incHit(dense, inc);
+    if(h.hit) out.push({inc,dist:Math.round(h.dist)});
   }
   return out;
 }
@@ -768,9 +796,9 @@ function match(){
       checks++;
       if(!incNearBox(inc, bb)) continue;
       boxed++;
-      const best = incDist(dense, inc);
-      if(best<=thresholdFor(inc)) hits.push({inc, dist:Math.round(best)});
-      else res["_near_"+r.id]=(res["_near_"+r.id]||[]).concat([{inc,dist:Math.round(best)}]);
+      const h = incHit(dense, inc);
+      if(h.hit) hits.push({inc, dist:Math.round(h.dist)});
+      else res["_near_"+r.id]=(res["_near_"+r.id]||[]).concat([{inc,dist:Math.round(h.dist)}]);
     }
     res[r.id]=hits;
   }
@@ -867,6 +895,11 @@ function flushMaps(){
       if(alt.length){
         m.addSource("alt", {type:"geojson", data: line(alt)});
         m.addLayer({id:"alt", type:"line", source:"alt", layout:{"line-cap":"round","line-join":"round"}, paint:{"line-color":"#F7C948","line-width":5,"line-dasharray":[1.6,1.3]}});
+      }
+      const hitLines = spec.hits.filter(x => x.inc.line && x.inc.line.length > 1).map(x => ({type:"Feature", properties:{}, geometry:{type:"LineString", coordinates:x.inc.line.map(ll)}}));
+      if(hitLines.length){
+        m.addSource("hitlines", {type:"geojson", data:{type:"FeatureCollection", features: hitLines}});
+        m.addLayer({id:"hitlines", type:"line", source:"hitlines", layout:{"line-cap":"round","line-join":"round"}, paint:{"line-color":"#F7C948","line-width":6,"line-opacity":0.85}});
       }
       if(hitPts.length){
         m.addSource("hits", {type:"geojson", data:{type:"FeatureCollection", features: hitPts}});
@@ -978,9 +1011,11 @@ async function loadTbaIncidents(){
     const data = await r.json();
     const add = data.items.map(x => {
       const ring = ringOf(x.geometry);
-      const pts = ring ? densify(ring.map(c => [c[1], c[0]]), 20) : null;
+      const line = ring ? ring.map(c => [c[1], c[0]]) : null;
+      const pts = line ? densify(line, TBA_STEP_M) : null;
+      let lenM = 0; if(line) for(let i=0;i<line.length-1;i++) lenM += haversine(line[i], line[i+1]);
       return {id: "TBA-" + x.external_id, quelle: "tba_be", titel: x.title, start: x.start_date, ende: x.end_date,
-        lat: x.lat, lon: x.lon, pts, bb: pts ? bbox(pts, 0) : null, live: true, aktiv: isActiveNow(x.start_date, x.end_date),
+        lat: x.lat, lon: x.lon, line, lenM, pts, bb: pts ? bbox(pts, 0) : null, live: true, aktiv: isActiveNow(x.start_date, x.end_date),
         night_only: false, daily_from: null, daily_to: null};
     });
     liveIncidents = liveIncidents.filter(i => i.quelle !== "tba_be").concat(add);
@@ -1606,7 +1641,7 @@ async function runPipeline(){
   await wait(300); log(`Abgleich mit ${S.routes.length} Strecke(n): ${m.checks} Prüfungen, ${m.boxed} nach Bounding Box, ${m.ms.toFixed(2)} ms`);
   for(const r of S.routes){
     const h = matches[r.id]||[];
-    log(h.length ? `<span class="warn">  ⚠ ${esc(r.name)}: ${h.length} Baustellen im 100-m-Korridor (${h.map(x=>x.dist+" m").join(", ")})</span>` : `<span class="ok">  ✓ ${esc(r.name)}: frei</span>`);
+    log(h.length ? `<span class="warn">  ⚠ ${esc(r.name)}: ${h.length} Baustellen im Korridor (${h.map(x=>x.dist+" m").join(", ")})</span>` : `<span class="ok">  ✓ ${esc(r.name)}: frei</span>`);
     (matches["_near_"+r.id]||[]).filter(x=>x.dist<600).forEach(x=>log(`<span class="dim">    ${esc(x.inc.titel.split(":")[0])}: ${x.dist} m entfernt, kein Treffer</span>`));
   }
   const due = S.routes.filter(r=>(matches[r.id]||[]).length);

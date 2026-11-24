@@ -1,7 +1,8 @@
 // Brumdrumherum – Baustellen Tiefbauamt Kanton Bern (TBA) in die App-Datei umwandeln
 // Aufruf: node scripts/tba-be.mjs <Baustellen_TBA_BE.geojson> [tba-be.json]
 // Liest den GeoJSON-Export des TBA (Koordinaten LV95, EPSG:2056), rechnet auf WGS84 um,
-// verwirft abgeschlossene und abgelaufene Baustellen und schreibt tba-be.json im Format der Tabelle «incidents».
+// behält nur Baustellen mit Status «im Bau» auf der Fahrbahn (die Termine sind Planungszeiträume, Gehwege betreffen den Verkehr nicht),
+// verwirft Baustellen ohne Termin und abgelaufene Baustellen und schreibt tba-be.json im Format der Tabelle «incidents».
 // Die App lädt die Datei direkt (index.html, loadTbaIncidents). Bei neuem Export den Aufruf wiederholen.
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -23,11 +24,12 @@ function thin(coords) {
 }
 
 export function convert(geojson, today = new Date().toISOString().slice(0, 10)) {
-  const stats = { total: geojson.features.length, abgeschlossen: 0, abgelaufen: 0, ohneTermin: 0, kept: 0 };
+  const stats = { total: geojson.features.length, nichtImBau: 0, keineFahrbahn: 0, abgelaufen: 0, ohneTermin: 0, kept: 0 };
   const items = [];
   for (const f of geojson.features) {
     const p = f.properties, g = f.geometry;
-    if (!g || !p.STATUS_BEZ || p.STATUS_BEZ === "Abgeschlossen") { stats.abgeschlossen++; continue; }
+    if (!g || p.STATUS_BEZ !== "im Bau") { stats.nichtImBau++; continue; }
+    if (p.NUTZUNG_BEZ !== "Fahrbahn") { stats.keineFahrbahn++; continue; }
     if (!p.TERMINVON || !p.TERMINBIS) { stats.ohneTermin++; continue; }
     const start = p.TERMINVON.slice(0, 10), end = p.TERMINBIS.slice(0, 10);
     if (end < today) { stats.abgelaufen++; continue; }
