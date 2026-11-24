@@ -1478,7 +1478,7 @@ function renderMapScreen(){
   appbar.innerHTML = meHeader();
   const act=incidentPool(REAL).filter(i=>i.aktiv); // Demo: immer die Story-Daten, damit Schritt K die A1-Nachtsperrung zeigt
   screen.innerHTML = `<h2 class="h1">Baustellen</h2><p class="lead">Rund um Bern, aus allen Quellen</p>
-    <div class="mapbox">${mapBlock(null, act.map(i=>({inc:i})).concat(S.reports.map(p=>({inc:p}))), {h:320, real:true})}</div>
+    <div class="mapbox">${mapBlock(null, act.map(i=>({inc:i})).concat(S.reports.map(p=>({inc:p}))), {h:480, real:true})}</div>
     <div class="list">
       <div class="li"><span class="ic src astra">${icon("cone")}</span><span class="t">ASTRA<small>Autobahnen und Zubringer${act.some(i=>i.quelle==="astra"&&i.night_only)?`, davon ${act.filter(i=>i.quelle==="astra"&&i.night_only).length} nur nachts`:""}</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="astra").length}</span></div>
       <div class="li"><span class="ic src bern">${icon("cone")}</span><span class="t">Stadt Bern<small>Gemeindestrassen, KOER</small></span><span class="rw tnum">${act.filter(i=>i.quelle==="stadt_bern").length}</span></div>
