@@ -7,11 +7,11 @@ Details in `CHANGELOG.md`, Push-Vorbereitung in `PUSH-BACKEND.md`.
 
 ## Update hochladen
 Im Repository «Add file» → «Upload files» und diese Dateien hineinziehen:
-`index.html`, `demo.html`, `sw.js`, `CHANGELOG.md`, `LIESMICH.md`. Dann «Commit changes».
+`index.html`, `demo.html`, `sw.js`, `tba-be.json`, `CHANGELOG.md`, `LIESMICH.md`. Dann «Commit changes».
 `config.js` mit dem Mapbox-Token bleibt unverändert.
 
 ## Baustellen Kanton Bern aktualisieren
-Die Daten des Kantons sind nicht öffentlich und dürfen nicht ins Repository. `tba-be.json` steht in `.gitignore` und wird nie hochgeladen. Lokal erzeugen: `node scripts/tba-be.mjs <neues.geojson> tba-be.json`. Ohne die Datei läuft die App ohne Kantonsdaten.
+`tba-be.json` liegt im Repository und wird mit der App ausgeliefert. Neu erzeugen: `node scripts/tba-be.mjs <neues.geojson> tba-be.json`, danach hochladen.
 
 ## Auf dem Handy prüfen
 App ganz schliessen und zweimal neu öffnen. Es erscheint direkt «Meine Strecken» mit den Beispielstrecken, neue Strecke über «Neue Strecke».
